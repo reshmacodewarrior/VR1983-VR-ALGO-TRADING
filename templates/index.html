@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <link rel="icon" href="/static/img/vrlogo.png">
+  <link rel="stylesheet" href="/static/css/index.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <title>VR Algo Trading</title>
+  
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <img src="static/img/vrlogo.png" alt="Velocity Returns Logo" class="nav-logo">
+        <h2>VR Algo Trading</h2>
+    </div>
+    <div class="nav-search-btns">
+      <div class="search-container">
+        <button id="searchBtn" class="nav-button">
+          <i class="fas fa-search"></i> Search Stocks TATA MOTORS, WIPRO etc.
+        </button>
+        <div id="searchDropdown" class="search-dropdown">
+          <input type="text" id="stockSearchInput" class="search-input" placeholder="Search Stocks...">
+          <div class="stock-option" data-stock="tata_motors"><img src="static/img/tata_motors.png"  class="stock-symbol"alt="tata-motors"> TATA MOTORS</div>
+          <div class="stock-option" data-stock="wipro"><img src="static/img/wipro.png" class="stock-symbol" alt="wipro"> WIPRO</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="nav-buttons">
+      <a href="#" class="nav-button active">Home</a>
+      <a href="#" class="nav-button">Intraday</a>
+      <a href="#" class="nav-button">Position</a>
+      <a href="#" class="nav-button">Swing</a>
+      <a href="#" class="nav-button">Longterm</a>
+      <a href="#" class="nav-button" href="loggedin/brokerage/select">broker_account</a>
+    </div>
+   <div class="nav-profile">
+      <div class="profile-container">
+        <button id="profileBtn" class="nav-button">
+          <i class="fas fa-user"></i>Profile
+        </button>
+        <div id="profilePopup" class="profile-popup">
+          <div class="profile-info">
+            <p id="profileFirstname">Firstname: Loading...</p>
+            <p id="profileLastname">Lastname: Loading...</p>
+            <p id="profileEmail">Email: Loading...</p>
+            <p id="profileMobileNo">Mobile No: Loading...</p>
+            <p id="profileJoinDate">Member since: Loading...</p>
+          </div>
+          <button id="popupLogoutBtn">Logout</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <div class="main-content">
+    <div id="bannerCarousel" class="carousel slide" data-bs-ride="carousel" data-bs-interval="3000">
+      <div class="carousel-inner">
+        <div class="carousel-item active">
+          <img src="static/img/image1.jpg" class="d-block w-150 h-150" style="width: 1980px;"  alt="Image1">
+        </div>
+        <div class="carousel-item ">
+          <img src="static/img/image2.jpg" class="d-block w-150 h-150" style="width: 1980px;"  alt="Image2">
+        </div>
+        <div class="carousel-item ">
+          <img src="static/img/image3.jpg" class="d-block w-150 h-150" style="width: 1980px;"  alt="Image3">
+        </div>
+        <div class="carousel-item">   
+          <img src="static/img/image4.jpg" class="d-block w-150 h-150" style="width: 1980px;" alt="Image4">
+        </div>
+        <div class="carousel-item">   
+          <img src="static/img/image5.jpg" class="d-block w-150 h-150" style="width: 1980px;" alt="Image5">
+        </div>
+      </div>
+
+      <button class="carousel-control-prev" type="button" data-bs-target="#bannerCarousel" data-bs-slide="prev" style="background: none;">
+        <span class="carousel-control-prev-icon"></span>
+      </button>
+      <button class="carousel-control-next" type="button" data-bs-target="#bannerCarousel" data-bs-slide="next" style="background: none;">
+        <span class="carousel-control-next-icon"></span>
+      </button>
+    </div>
+ 
+  </div>
+
+  <script>
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      window.location.href = '/login';
+    }
+
+    const searchBtn = document.getElementById('searchBtn');
+    const searchDropdown = document.getElementById('searchDropdown');
+    const stockSearchInput = document.getElementById('stockSearchInput');
+    const stockOptions = document.querySelectorAll('.stock-option');
+    
+    searchBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      searchDropdown.classList.toggle('show');
+      if (searchDropdown.classList.contains('show')) {
+        stockSearchInput.focus();
+      }
+    });
+    
+     const searchTerm = stockSearchInput.value.toLowerCase();
+        stockOptions.forEach(option => {
+          const stockName = option.textContent.toLowerCase();
+          if (stockName.includes(searchTerm)) {
+            option.style.display = 'block';
+          } else {
+            option.style.display = 'none';
+          }
+        });
+    
+      
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-container')) {
+          searchDropdown.classList.remove('show');
+        }
+      });
+      
+      document.querySelectorAll('.stock-option').forEach(option => {
+        option.addEventListener('click', () => {
+          const stock = option.getAttribute('data-stock');
+          window.location.href = `/${stock}`;
+        });
+      });
+    
+    const profileBtn = document.getElementById('profileBtn');
+    const profilePopup = document.getElementById('profilePopup');
+    
+    profileBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      profilePopup.classList.toggle('show');
+    });
+    
+    document.addEventListener('click', () => {
+      profilePopup.classList.remove('show');
+    });
+    
+    async function fetchUserProfile() {
+    try {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/login';
+            return;
+        }
+
+        const response = await fetch('/user/profile', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            const userData = await response.json();
+            document.getElementById('profileFirstname').textContent = `Firstname: ${userData.firstname}`;
+            document.getElementById('profileLastname').textContent = `Lastname: ${userData.lastname}`;
+            document.getElementById('profileEmail').textContent = `Email: ${userData.email}`;
+            document.getElementById('profileMobileNo').textContent =`MobileNo: ${userData.mobile_no}`;
+            
+            const joinDate = new Date(userData.created_at);
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('profileJoinDate').textContent = `Member since: ${joinDate.toLocaleDateString(undefined, options)}`;
+        } else if (response.status === 404) {
+            document.getElementById('profileUsername').textContent = 'Username: Not available';
+        } else {
+            console.error('Failed to fetch user profile');
+        }
+    } catch (error) {
+        console.error('Error fetching user profile:', error);
+        document.getElementById('profileUsername').textContent = 'Username: Error loading';
+    }} 
+
+    fetchUserProfile();
+
+    document.getElementById('popupLogoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('access_token');
+      window.location.href = '/';
+    });
+
+    const carousel = document.querySelector('#bannerCarousel');
+    const bsCarousel = new bootstrap.Carousel(carousel, {
+      interval: 3000,
+      ride: false
+    });
+
+    let direction = 'next';
+
+    carousel.addEventListener('slid.bs.carousel', function (event) {
+      const totalItems = carousel.querySelectorAll('.carousel-item').length;
+      const activeIndex = event.to; 
+
+      if (activeIndex === totalItems - 1) {
+        direction = 'prev';
+      } else if (activeIndex === 0) {
+        direction = 'next';
+      }
+
+      bsCarousel.pause();
+      setTimeout(() => {
+        bsCarousel[direction]();
+      }, 5000);
+    });
+
+  </script>
+  
+</body>
+</html>
