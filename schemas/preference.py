@@ -9,10 +9,10 @@ class RiskLevel(str, Enum):
     high = "High"
 
 class Preference(BaseModel):
-    user_id: str                # FK → User._id
+    user_id: str                
     preferred_broker: str
-    notifications: bool = True   # default enabled
-    risk_level: str              # e.g. "Low", "Medium", "High"
+    notifications: bool = True   
+    risk_level: str            
 
 
 class PreferenceInDB(BaseModel):

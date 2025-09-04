@@ -1,9 +1,26 @@
 from datetime import datetime
 import re
-from typing import Optional, Annotated
+from typing import List, Optional, Annotated
 from pydantic import BaseModel, Field, field_validator, EmailStr, ConfigDict
 from bson import ObjectId
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    firstname: Optional[str] = None
+    lastname: Optional[str] = None
+    email: Optional[EmailStr] = None
+    mobile_no: Optional[str] = None
+
+class WatchlistItem(BaseModel):
+    symbol: str = Field(..., description="The trading symbol, e.g., 'RELIANCE', 'INFY'")
+    exchange: Optional[str] = Field("NSE", description="The exchange, e.g., 'NSE', 'BSE'") # Optional field
+
+    class Config:
+        from_attributes = True
 
 class User(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
@@ -16,6 +33,7 @@ class User(BaseModel):
         description="Mobile number in international format (e.g., +919876543210)"
     )
     brokers: Optional[list] = []
+    watchlist: Optional[List[WatchlistItem]] = None
     password: str = Field(..., min_length=8)
 
     @field_validator("password")
@@ -33,7 +51,6 @@ class User(BaseModel):
 
 
 class UserInDB(BaseModel):
-    # Use the new ConfigDict instead of old Config class
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True
@@ -46,6 +63,7 @@ class UserInDB(BaseModel):
     email: EmailStr
     mobile_no: Optional[str] = None
     brokers: Optional[list] = []
+    watchlist: Optional[List[WatchlistItem]] = None
     hashed_password: str = Field(..., alias="password")
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -70,13 +88,3 @@ class UserInDB(BaseModel):
         raise ValueError("Invalid ObjectId format")
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class UserUpdate(BaseModel):
-    username: Optional[str] = None
-    firstname: Optional[str] = None
-    lastname: Optional[str] = None
-    email: Optional[EmailStr] = None
-    mobile_no: Optional[str] = None

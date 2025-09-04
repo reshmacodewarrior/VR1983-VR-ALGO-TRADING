@@ -8,9 +8,9 @@ from pydantic import BaseModel, EmailStr, Field
 from jose import JWTError, jwt
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from app.utils import send_reset_email  # Assuming you have a utility function to send emails
+from app.utils import send_reset_email  
 
-router = APIRouter()
+router = APIRouter(prefix="/api/user", tags=["password"])
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -40,7 +40,6 @@ async def forgot_password(req: ForgotPasswordRequest):
 
     reset_link = f"http://192.168.1.58:8000/reset-password?token={reset_token}"
 
-    # Send email
     await send_reset_email(req.email, reset_link)
 
     return {"message": "Password reset link sent to your email"}

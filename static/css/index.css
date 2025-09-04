@@ -1,19 +1,33 @@
 :root {
-  --primary-color: #0077cc;
-  --secondary-color: #00aaff;
-  --dark-color: #2c3e50;
-  --light-color: #ecf0f1;
-  --danger-color: #e74c3c;
-  --danger-hover: #c0392b;
-  --shadow-color: rgba(18, 122, 241, 0.973);
-  --nav-bg: linear-gradient(135deg, #ffffff 0%, #ecf0f1 100%);
+  /* Core Brand */
+  --primary-color: #6366f1;   /* Indigo - modern, trustworthy */
+  --secondary-color: #22c55e; /* Emerald green - fresh, friendly */
+  
+  /* Backgrounds */
+  --dark-color: #1e293b;      /* Slate - dark, clean */
+  --light-color: #f9fafb;     /* Soft off-white */
+  
+  /* Accent / Alerts */
+  --danger-color: #ef4444;    /* Vibrant red */
+  --danger-hover: #dc2626;    /* Darker red */
+  --atitle-color: #ec4899;    /* Pink - playful highlight */
+  --btitle-color: #f59e0b;    /* Amber - warm contrast */
+  
+  /* Shadows */
+  --shadow-color: rgba(99, 102, 241, 0.3); /* Soft indigo glow */
+  
+  /* Text */
   --text-light: #ffffff;
-  --text-dark: #333333;
-  --border-radius: 5px;
+  --text-dark: #334155;
+  
+  /* UI */
+  --border-radius: 8px;
   --transition-speed: 0.3s;
-  --atitle-color: #e90778;
-  --btitle-color: #e08b0b;
+  
+  /* Navbar background */
+  --nav-bg: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
 }
+
 
 * {
   margin: 0;

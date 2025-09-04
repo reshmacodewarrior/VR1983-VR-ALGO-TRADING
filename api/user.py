@@ -9,60 +9,18 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from database.collections import users_collection
 from schemas.user import User, UserInDB,EmailStr
+from services.user import (
+    verify_password, 
+    get_password_hash, 
+    create_access_token, 
+    get_current_user
+)
 from config import settings
 
-router = APIRouter()
+router = APIRouter(prefix="/api/user", tags=["users"])
 
-templates = Jinja2Templates(directory="templates")
 
-SECRET_KEY = settings.SECRET_KEY 
-ALGORITHM = settings.ALGORITHM
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-def verify_password(plain_password: str, hashed_password: str):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password: str):
-    return pwd_context.hash(password)
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    
-    user = await get_user_by_email(email)
-    if user is None:
-        raise credentials_exception
-    return user
-
-async def get_user_by_email(email: str) -> Optional[UserInDB]:
-    user = await users_collection.find_one({"email": email})
-    if user:
-        user["_id"] = str(user["_id"])
-        return UserInDB(**user)
-    return None
-
-@router.get("/users/login")
+@router.get("/email")
 async def get_user_by_email(email: str) -> Optional[UserInDB]:
     user = await users_collection.find_one({"email": email})
     if user:
@@ -78,19 +36,6 @@ async def authenticate_user(email: str, password: str):
         return False
     return user
 
-@router.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
-@router.get("/forgot-password", response_class=HTMLResponse)
-async def read_root(request: Request):
-    return templates.TemplateResponse("forgot_password.html", {"request": request})
-@router.get("/loggedin", response_class=HTMLResponse)
-async def login_page(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
-@router.get("/signup", response_class=HTMLResponse)
-async def signup_page(request: Request):
-    return templates.TemplateResponse("signup.html", {"request": request})
 
 @router.post("/signup")
 async def signup(user: User):
@@ -161,82 +106,17 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         }
     }
 
-@router.get("/user/profile")
+@router.get("/profile")
 async def get_user_profile(current_user: UserInDB = Depends(get_current_user)):
     return {
         "username": current_user.username,   
         "firstname": current_user.firstname,
         "lastname": current_user.lastname,
         "email": current_user.email,
+        "brokers": current_user.brokers,
         "mobile_no": current_user.mobile_no,
         "created_at": current_user.created_at
     }
 
 
-
-
-# def get_password_hash(password: str) -> str:
-#     return pwd_context.hash(password)
-
-
-# # ---------- Schemas ----------
-# class ForgotPasswordRequest(User):
-#     email: EmailStr
-
-# class ResetPasswordRequest(User):
-#     token: str
-#     new_password: str
-#     confirm_password: str
-
-
-# # ---------- Routes ----------
-# @router.post("/forgot-password")
-# async def forgot_password(req: ForgotPasswordRequest):
-#     user = await users_collection.find_one({"email": req.email})
-#     if not user:
-#         raise HTTPException(status_code=404, detail="User not found")
-
-#     # Generate reset token
-#     expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-#     payload = {"sub": req.email, "exp": expire}
-#     reset_token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-
-#     # Store token and expiry in DB
-#     await users_collection.update_one(
-#         {"email": req.email},
-#         {"$set": {"reset_token": reset_token, "reset_token_expiry": expire}}
-#     )
-
-#     reset_link = f"http://localhost:8000/reset-password?token={reset_token}"
-
-#     # TODO: Send reset_link by email
-#     # Example: send_email(req.email, "Password Reset", f"Click here: {reset_link}")
-
-#     return {"message": "Password reset link sent", "reset_link": reset_link}  # (remove reset_link in production)
-
-
-# @router.post("/reset-password")
-# async def reset_password(req: ResetPasswordRequest):
-#     if req.new_password != req.confirm_password:
-#         raise HTTPException(status_code=400, detail="Passwords do not match")
-
-#     try:
-#         payload = jwt.decode(req.token, SECRET_KEY, algorithms=[ALGORITHM])
-#         email = payload.get("sub")
-#     except JWTError:
-#         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-#     user = await users_collection.find_one({"email": email})
-#     if not user or user.get("reset_token") != req.token:
-#         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-#     hashed_password = get_password_hash(req.new_password)
-
-#     # Update password and clear reset token
-#     await users_collection.update_one(
-#         {"email": email},
-#         {"$set": {"hashed_password": hashed_password}, "$unset": {"reset_token": "", "reset_token_expiry": ""}}
-#     )
-
-#     return {"message": "Password reset successful"}
 

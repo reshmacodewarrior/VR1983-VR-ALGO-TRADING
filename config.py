@@ -8,14 +8,7 @@ class Settings(BaseSettings):
     MONGODB_URI: str = "mongodb://localhost:27017"
     DB_NAME: str = "trading_app"
     
-    USERS_COLLECTION: str = "users"
-    TATA_COLLECTION: str = "tata_motors"
-    WIPRO_COLLECTION: str = "wipro"
-    BROKERS_COLLECTION: str = "brokers"
-    NOTIFICATIONS_COLLECTION: str = "notifications"
-    TRADES_COLLECTION: str = "trades"
-    MARKETS_COLLECTION: str ="markets"
-    PREFERENCES_COLLECTION: str = "preferences"
+    
     
     # Email settings
     MAIL_USERNAME: str = "reshmamanikandan1512@gmail.com"

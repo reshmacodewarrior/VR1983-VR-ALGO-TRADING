@@ -1,41 +1,35 @@
-from datetime import datetime
-from enum import Enum
-from pydantic import BaseModel, Field
-from bson import ObjectId
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, List
 
-# Restrict signal_type to fixed values
-class SignalType(str, Enum):
-    buy = "Buy"
-    sell = "Sell"
-    hold = "Hold"
-
-
-class TradeSignal(BaseModel):
-    user_id: str                 # FK → User._id
+class TradingSignalResponse(BaseModel):
+    signal: str
     symbol: str
-    signal_type: SignalType      # Enum instead of free text
-    confidence_score: float      # 0.0 → 100.0 (%)
+    timestamp: str
+    price: float
+    rsi: Optional[float] = None
+    sma_20: Optional[float] = None
+    reason: Optional[str] = None
+    confidence: Optional[float] = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class TradeSignalInDB(BaseModel):
-    id: str = Field(..., alias="_id")
-    user_id: str
+class BacktestRequest(BaseModel):
     symbol: str
-    signal_type: SignalType
-    confidence_score: float
-    timestamp: datetime = Field(default_factory=datetime.utcnow)  
-    # auto set when inserting
+    period: str = "3mo"
+    interval: str = "1h"
+    rsi_oversold: int = 30
+    rsi_overbought: int = 70
+    sma_period: int = 20
 
-    # Convert ObjectId → str for API responses
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate_objectid
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    @staticmethod
-    def validate_objectid(v):
-        if isinstance(v, ObjectId):
-            return str(v)
-        return v
 
-    class Config:
-        populate_by_name = True
+class BacktestResult(BaseModel):
+    total_signals: int
+    buy_signals: int
+    sell_signals: int
+    win_rate: Optional[float] = None
+    trades: List[dict]  # Use simple dict instead of typed Dict
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)

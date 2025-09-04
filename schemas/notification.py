@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field
 from bson import ObjectId
 
 
-# Restrict notification type to fixed categories
 class NotificationType(str, Enum):
     signal = "Signal"
     system = "System"
@@ -12,10 +11,10 @@ class NotificationType(str, Enum):
 
 
 class Notification(BaseModel):
-    user_id: str                  # FK → User._id
+    user_id: str                  
     message: str
-    type: NotificationType         # Enum for category
-    is_read: bool = False          # default → unread
+    type: NotificationType         
+    is_read: bool = False          
 
 
 class NotificationInDB(BaseModel):
@@ -26,7 +25,6 @@ class NotificationInDB(BaseModel):
     is_read: bool = False
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
-    # Convert ObjectId → str
     @classmethod
     def __get_validators__(cls):
         yield cls.validate_objectid

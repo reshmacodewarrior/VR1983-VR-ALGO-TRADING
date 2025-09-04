@@ -6,11 +6,10 @@ from schemas.user import UserInDB
 from schemas.broker import BrokerCreate
 from .user import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/api", tags=["broker"])
 
 @router.post("/broker/add")
 async def add_broker(broker: BrokerCreate, current_user: UserInDB = Depends(get_current_user)):
-    # Check if user already has broker with same name
     existing = await users_collection.find_one(
         {"_id": ObjectId(current_user.id), "brokers.broker_name": broker.broker_name}
     )
@@ -27,13 +26,11 @@ async def add_broker(broker: BrokerCreate, current_user: UserInDB = Depends(get_
         "created_at": datetime.utcnow().isoformat()
     }
 
-    # 1. Store inside user document
     await users_collection.update_one(
         {"_id": ObjectId(current_user.id)},
         {"$push": {"brokers": broker_data}}
     )
 
-    # 2. Store inside brokers collection (for analytics / admin)
     broker_record = {
         "user_id": str(current_user.id),
         **broker_data
