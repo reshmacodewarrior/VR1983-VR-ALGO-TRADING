@@ -46,7 +46,7 @@ async def generate_trading_signal(symbol, period, interval):
             return {
                 "signal": "HOLD",
                 "symbol": symbol,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.utcnow().isoformat(),
                 "reason": "Insufficient data",
                 "confidence": 0.0
             }
@@ -61,7 +61,7 @@ async def generate_trading_signal(symbol, period, interval):
         response = {
             "signal": "HOLD",
             "symbol": symbol,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.utcnow().isoformat(),
             "price": float(latest['Close']),
             "rsi": float(latest['rsi']) if pd.notna(latest['rsi']) else None,
             "sma_20": float(latest['sma_20']) if pd.notna(latest['sma_20']) else None,

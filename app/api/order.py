@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from bson import ObjectId
 import yfinance as yf
 import random
+import logging
+from datetime import datetime, timezone, timedelta
 
 from database.collections import users_collection, trades_collection, holdings_collection, balance_collection
 from schemas.order import OrderRequest, OrderResponse, Trade, Holding
@@ -10,6 +12,9 @@ from .user import get_current_user
 from schemas.user import UserInDB
 
 router = APIRouter(prefix="/api", tags=["Trading"])
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Initialize user with virtual balance
 async def init_virtual_balance(user_id: str):
@@ -21,6 +26,42 @@ async def init_virtual_balance(user_id: str):
     })
     return initial_balance
 
+def get_current_market_price(symbol: str):
+    """Get current market price from yfinance with proper error handling"""
+    try:
+        # Add .NS for NSE symbols if not already present
+        if not symbol.endswith('.NS'):
+            symbol += '.NS'
+            
+        ticker = yf.Ticker(symbol)
+        
+        # Try to get regular market price first
+        info = ticker.info
+        current_price = info.get('regularMarketPrice')
+        
+        # If not available, try currentPrice
+        if current_price is None:
+            current_price = info.get('currentPrice')
+            
+        # If still not available, get latest historical data
+        if current_price is None or current_price == 0:
+            hist = ticker.history(period="1d", interval="1m")
+            if not hist.empty:
+                current_price = hist['Close'].iloc[-1]
+        
+        # If all else fails, raise an exception
+        if current_price is None or current_price == 0:
+            raise ValueError(f"Could not fetch price for {symbol}")
+            
+        return round(current_price, 2)
+        
+    except Exception as e:
+        logger.error(f"Error fetching price for {symbol}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Could not fetch current market price for {symbol}. Please try again."
+        )
+
 @router.post("/order", response_model=OrderResponse)
 async def place_order(
     order: OrderRequest,
@@ -29,22 +70,17 @@ async def place_order(
     """Place an order (paper trading)"""
     user_id = current_user.id
     
-    # 1. Get current market price from yfinance
+    # 1. Get current market price
     try:
-        ticker = yf.Ticker(f"{order.symbol}.NS")
-        info = ticker.info
-        current_price = info.get('regularMarketPrice', info.get('currentPrice', 0))
-        
-        if not current_price or current_price == 0:
-            hist = ticker.history(period="1d", interval="1m")
-            if not hist.empty:
-                current_price = hist['Close'].iloc[-1]
-            else:
-                # Fallback to random price if yfinance fails (for development)
-                current_price = random.uniform(100, 5000)
+        executed_price = get_current_market_price(order.symbol)
+    except HTTPException:
+        raise
     except Exception as e:
-        current_price = random.uniform(100, 5000)  # Fallback
-
+        logger.error(f"Unexpected error fetching price: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error fetching market price for {order.symbol}"
+        )
 
     # 2. Get user's virtual balance
     balance_data = await balance_collection.find_one({"user_id": user_id})
@@ -53,19 +89,11 @@ async def place_order(
     else:
         cash_balance = balance_data["cash_balance"]
 
-        # 3. Calculate order value
-    if current_price == 0 or current_price is None:
-        # yfinance failed → execute at random price
-        executed_price = round(random.uniform(100, 5000), 2)
-    else:
-        # yfinance success → use current price
-        executed_price = current_price
-
+    # 3. Calculate order value
     order_value = executed_price * order.quantity
 
-
     # 4. Generate a realistic order ID
-    order_id = f"{datetime.now().strftime('%y%m%d')}{random.randint(100000, 999999)}"
+    order_id = f"{datetime.utcnow().strftime('%y%m%d')}{random.randint(100000, 999999)}"
 
     # 5. Execute BUY order
     if order.transaction_type.upper() == "BUY":
@@ -91,7 +119,7 @@ async def place_order(
                 {"user_id": user_id, "symbol": order.symbol},
                 {"$set": {
                     "quantity": new_quantity,
-                    "average_price": new_avg_price,
+                    "average_price": round(new_avg_price, 2),
                     "last_updated": datetime.utcnow()
                 }}
             )
@@ -177,10 +205,9 @@ async def get_holdings(current_user: UserInDB = Depends(get_current_user)):
     result = []
     for holding in holdings:
         try:
-            ticker = yf.Ticker(f"{holding['symbol']}.NS")
-            info = ticker.info
-            last_price = info.get('regularMarketPrice', info.get('currentPrice', holding['average_price']))
+            last_price = get_current_market_price(holding['symbol'])
         except:
+            # If we can't get current price, use the average price
             last_price = holding['average_price']
         
         pnl = (last_price - holding['average_price']) * holding['quantity']
