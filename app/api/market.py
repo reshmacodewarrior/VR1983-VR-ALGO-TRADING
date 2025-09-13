@@ -222,14 +222,19 @@ async def get_historical_data(symbol: str, period: str = "1mo", interval: str = 
     Get historical market data for a symbol.
     """
     try:
+        # Add .NS for NSE symbols
+        if not symbol.endswith('.NS'):
+            symbol = f"{symbol}.NS"
+            
         ticker = yf.Ticker(symbol)
         hist = ticker.history(period=period, interval=interval)
 
         if hist.empty:
             raise HTTPException(status_code=404, detail="No data found for this request")
+        
         hist.reset_index(inplace=True)
         hist.rename(columns={
-            "Date": "datetime",
+            "Date": "date",  # Change to "date" for consistency
             "Open": "open",
             "High": "high",
             "Low": "low",
@@ -237,10 +242,107 @@ async def get_historical_data(symbol: str, period: str = "1mo", interval: str = 
             "Volume": "volume"
         }, inplace=True)
 
-        data = hist[["datetime", "open", "high", "low", "close", "volume"]]
-        data["datetime"] = data["datetime"].dt.strftime('%Y-%m-%d %H:%M:%S')
+        data = hist[["date", "open", "high", "low", "close", "volume"]]
+        data["date"] = data["date"].dt.strftime('%Y-%m-%d %H:%M:%S')
         return data.to_dict(orient="records")
     except Exception as e:
         logger.error(f"Error in get_historical_data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-    # Add to your FastAPI backend
+
+class LevelSignalRequest(BaseModel):
+    symbol: str
+    levels: List[float]
+    period: str = "1mo"
+    interval: str = "1d"
+
+class SignalResponse(BaseModel):
+    date: str
+    price: float
+    type: str  # BUY or SELL
+    level: float
+
+@router.post("/signals/levels", response_model=List[SignalResponse])
+async def generate_level_signals(request: LevelSignalRequest):
+    """
+    Generate buy/sell signals based on predefined price levels
+    """
+    try:
+        # Fetch historical data
+        data = await get_historical_data(request.symbol, request.period, request.interval)
+        
+        if not data:
+            raise HTTPException(status_code=404, detail="No data found for this symbol")
+        
+        signals = []
+        levels = request.levels
+        
+        for entry in data:
+            date = entry["datetime"]
+            open_price = entry["open"]
+            high = entry["high"]
+            low = entry["low"]
+            close = entry["close"]
+            
+            # Check if price touches any of the levels
+            for level in levels:
+                if low <= level <= high:
+                    # Determine if it's a buy or sell signal based on closing price
+                    signal_type = "BUY" if close >= level else "SELL"
+                    
+                    signals.append({
+                        "date": date,
+                        "price": level,
+                        "type": signal_type,
+                        "level": level
+                    })
+        
+        return signals
+        
+    except Exception as e:
+        logger.error(f"Error generating level signals: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.get("/stock/{symbol}/with-levels")
+async def get_stock_data_with_levels(
+    symbol: str, 
+    period: str = "1mo", 
+    interval: str = "1d"
+):
+    """
+    Get stock data with predefined levels for Tata Motors
+    """
+    try:
+        # Get historical data
+        historical_data = await get_historical_data(symbol, period, interval)
+        
+        # Predefined levels for Tata Motors
+        levels = [706, 668, 667, 703]
+        
+        # Generate signals
+        signals = []
+        for entry in historical_data:
+            date = entry["date"]  # Use "date" instead of "datetime"
+            high = entry["high"]
+            low = entry["low"]
+            close = entry["close"]
+            
+            for level in levels:
+                if low <= level <= high:
+                    signal_type = "BUY" if close >= level else "SELL"
+                    signals.append({
+                        "date": date,
+                        "price": level,
+                        "type": signal_type,
+                        "level": level
+                    })
+        
+        return {
+            "symbol": symbol,
+            "data": historical_data,
+            "levels": levels,
+            "signals": signals
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in get_stock_data_with_levels: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

@@ -2,10 +2,10 @@ from fastapi import APIRouter, HTTPException, Query
 from app.api.user import get_password_hash
 from app.database.collections import markets_collection
 from datetime import datetime, timedelta
-from app.database.collections import users_collection
 from app.config import settings
 from pydantic import BaseModel, EmailStr, Field
 from jose import JWTError, jwt
+from app.database.collections import users_collection
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from app.utils import send_reset_email  

@@ -4,7 +4,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from app.api.routers import api_router
+from app.api.routes import api_router
 from fastapi.middleware.cors import CORSMiddleware
 
 

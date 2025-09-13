@@ -38,3 +38,4 @@ async def add_broker(broker: BrokerCreate, current_user: UserInDB = Depends(get_
     await brokers_collection.insert_one(broker_record)
 
     return {"message": "Broker added successfully", "broker": broker_data}
+

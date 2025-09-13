@@ -33,7 +33,8 @@ class Trade(BaseModel):
     product: str
     status: str
     average_price: float
-    order_timestamp: str
+    order_timestamp: datetime
+    executed_at: Optional[datetime] = None
     exchange_order_id: Optional[str] = None
 
 class Holding(BaseModel):
