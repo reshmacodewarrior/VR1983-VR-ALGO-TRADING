@@ -21,7 +21,6 @@ async def upload_levels(
 
         inserted = []
         for row in reader:
-            # normalize all keys
             row = {k.lower().strip(): v.strip() for k, v in row.items() if k}
 
             symbol = row.get("symbol")
@@ -29,7 +28,7 @@ async def upload_levels(
             transaction_type = row.get("transaction_type") or row.get("type")
 
             if not symbol or not level or not transaction_type:
-                continue  # skip invalid rows
+                continue 
 
             await levels_collection.insert_one({
                 "user_id": current_user.id,

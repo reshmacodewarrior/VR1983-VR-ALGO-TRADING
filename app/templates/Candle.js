@@ -415,100 +415,76 @@ const CandlestickChart = ({ data, symbol }) => {
     },
     yaxis: "y1",
   }));
-  
+ 
+
+// Order flow wave (closing price line)
+const orderFlowTrace = {
+  x: dates,
+  y: closes,
+  type: "scatter",
+  mode: "lines",
+  name: "Order Flow",
+  line: { color: "#3b82f6", width: 1.5 },
+  opacity: 0.6,
+  yaxis: "y1",
+};
+
+// Markers for executed trades
+const markers = transactionHistory.map((tx) => ({
+  x: [new Date(tx.time)],
+  y: [tx.price],
+  type: "scatter",
+  mode: "markers+text",
+  text: [`${tx.type} @ ₹${tx.price.toFixed(2)}`],
+  textposition: "top center",
+  marker: {
+    symbol: tx.type === "BUY" ? "triangle-up" : "triangle-down",
+    size: 12,
+    color: tx.type === "BUY" ? "green" : "red",
+    line: { width: 1, color: "#fff" },
+  },
+  name: `${tx.type} ${tx.symbol}`,
+  yaxis: "y1",
+}));
+
+// Final chart data (no volume, no SMA)
 
   // Filter traces to remove any null values
   const chartData = [
-    priceTrace,
-    volumeTrace,
-    smaTrace,
-    ...buyTraces,
-    ...sellTraces,
+    buyTraces,
+    sellTraces,
+    priceTrace, 
+    orderFlowTrace, 
+    markers
   ].filter((trace) => trace !== null);
 
-  const layout = {
-    title: {
-      text: `${symbol} | Buy: ${buyLevels.join(", ")} | Sell: ${sellLevels.join(
-        ", "
-      )}`,
-      font: { color: "#e5e7eb", size: 20 },
-      x: 0.05,
-      xanchor: "left",
-    },
-    height: 600,
-    showlegend: true,
-    legend: {
-      x: 0.02,
-      y: 0.98,
-      bgcolor: "rgba(0,0,0,0.5)",
-      font: { color: "#e5e7eb" },
-      bordercolor: "#374151",
-      borderwidth: 1,
-    },
-    xaxis: {
-      rangeslider: { visible: false },
-      title: { text: "Date", font: { color: "#9ca3af" } },
-      gridcolor: "#374151",
-      zerolinecolor: "#374151",
-      tickfont: { color: "#9ca3af" },
-    },
-    yaxis: {
-      title: { text: "Price (INR)", font: { color: "#9ca3af" } },
-      domain: [0.25, 1],
-      tickformat: "₹.2f",
-      gridcolor: "#374151",
-      zerolinecolor: "#374151",
-      tickfont: { color: "#9ca3af" },
-    },
-    yaxis2: {
-      title: { text: "Volume", font: { color: "#9ca3af" } },
-      domain: [0, 0.2],
-      side: "right",
-      gridcolor: "#374151",
-      zerolinecolor: "#374151",
-      tickfont: { color: "#9ca3af" },
-    },
-    margin: { l: 60, r: 60, t: 80, b: 60 },
-    plot_bgcolor: "#1f2937",
-    paper_bgcolor: "#111827",
-    font: { family: "Inter, sans-serif" },
-    hovermode: "x unified",
-    hoverlabel: {
-      bgcolor: "#1f2937",
-      font: { color: "#e5e7eb" },
-      bordercolor: "#374151",
-    },
-    shapes: [
-      // Add horizontal lines for buy levels
-      ...buyLevels.map((level) => ({
-        type: "line",
-        x0: dates[0],
-        y0: level,
-        x1: dates[dates.length - 1],
-        y1: level,
-        line: {
-          color: "#10b981",
-          width: 2,
-          dash: "dash",
-        },
-        yref: "y1",
-      })),
-      // Add horizontal lines for sell levels
-      ...sellLevels.map((level) => ({
-        type: "line",
-        x0: dates[0],
-        y0: level,
-        x1: dates[dates.length - 1],
-        y1: level,
-        line: {
-          color: "#ef4444",
-          width: 2,
-          dash: "dash",
-        },
-        yref: "y1",
-      })),
-    ],
-  };
+ const layout = {
+  title: {
+    text: `${symbol} Order Flow`,
+    font: { color: "#e5e7eb", size: 20 },
+    x: 0.05,
+    xanchor: "left",
+  },
+  height: 600,
+  showlegend: true,
+  xaxis: {
+    rangeslider: { visible: false },
+    title: { text: "Date", font: { color: "#9ca3af" } },
+    gridcolor: "#374151",
+    tickfont: { color: "#9ca3af" },
+  },
+  yaxis: {
+    title: { text: "Price (INR)", font: { color: "#9ca3af" } },
+    tickformat: "₹.2f",
+    gridcolor: "#374151",
+    tickfont: { color: "#9ca3af" },
+  },
+  margin: { l: 60, r: 60, t: 80, b: 60 },
+  plot_bgcolor: "#1f2937",
+  paper_bgcolor: "#111827",
+  font: { family: "Inter, sans-serif" },
+  hovermode: "x unified",
+};
 
   const config = {
     responsive: true,

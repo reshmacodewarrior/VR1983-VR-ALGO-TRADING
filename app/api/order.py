@@ -241,3 +241,95 @@ async def get_balance(current_user: UserInDB = Depends(get_current_user)):
         "total_holdings_value": total_holdings_value,
         "total_portfolio_value": total_portfolio_value
     }
+
+# --- NEW CODE FOR ORDER VIEW TABLE PANEL ---
+from typing import List
+from pydantic import BaseModel
+
+# 1. Define a new Pydantic model for the Order View response
+class OrderViewItem(BaseModel):
+    no: int  # Sequential number
+    symbol: str
+    order_price: float  # from trades_collection 'average_price'
+    current_price: float
+    profit_loss: float  # (current_price - order_price) * quantity
+    quantity: int
+    risk_level: str  # The new field: e.g., "Low", "Medium", "High"
+    # Optional: Add other fields you might need like 'order_id', 'transaction_type'
+
+# 2. Create a function to calculate risk level (simple logic for now)
+def calculate_risk_level(profit_loss: float, investment_value: float) -> str:
+    """
+    A simple function to determine risk level based on P&L.
+    You can make this much more sophisticated later (using ATR, volatility, etc.).
+    """
+    if investment_value == 0:
+        return "Medium"
+    
+    # Calculate P&L as a percentage of the initial investment
+    pl_percentage = (profit_loss / investment_value) * 100
+
+    if abs(pl_percentage) > 10:
+        return "High"
+    elif abs(pl_percentage) > 5:
+        return "Medium"
+    else:
+        return "Low"
+
+# 3. The new API endpoint for the Order View Table
+@router.get("/order-view", response_model=List[OrderViewItem])
+async def get_order_view_table(current_user: UserInDB = Depends(get_current_user)):
+    """
+    Get a consolidated view of orders with current price, P/L, and risk level.
+    This is specifically for the new UI panel.
+    """
+    try:
+        # Get the user's recent orders (trades)
+        trades = await trades_collection.find({"user_id": current_user.id}).sort("order_timestamp", -1).to_list(50)
+        
+        order_view_list = []
+        
+        for index, trade in enumerate(trades):
+            symbol = trade["symbol"]
+            
+            # Get the current market price for this symbol
+            try:
+                current_price = get_current_market_price(symbol)
+            except Exception as e:
+                logger.error(f"Could not fetch current price for {symbol}: {e}")
+                # If price fetch fails, skip this trade from the list or use order price?
+                current_price = trade["average_price"]
+            
+            # Calculate Profit/Loss
+            # For BUY: P/L = (Current - Order) * Qty
+            # For SELL: P/L = (Order - Current) * Qty (or just negative of BUY)
+            order_value = trade["average_price"] * trade["quantity"]
+            if trade["transaction_type"].upper() == "BUY":
+                profit_loss = (current_price - trade["average_price"]) * trade["quantity"]
+            else:  # SELL
+                profit_loss = (trade["average_price"] - current_price) * trade["quantity"]
+            
+            # Calculate Risk Level
+            risk_level = calculate_risk_level(profit_loss, order_value)
+            
+            # Create the order view item
+            order_view_item = {
+                "no": index + 1,  # Sequential number
+                "symbol": symbol,
+                "order_price": trade["average_price"],
+                "current_price": current_price,
+                "profit_loss": profit_loss,
+                "quantity": trade["quantity"],
+                "risk_level": risk_level
+            }
+            
+            order_view_list.append(order_view_item)
+        
+        return order_view_list
+        
+    except Exception as e:
+        logger.error(f"Error in get_order_view_table: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch order view data"
+        )
