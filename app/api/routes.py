@@ -1,8 +1,7 @@
 import datetime
 from typing import List
 from fastapi import APIRouter
-from datetime import datetime
-from app.services.storage import trading_signals  # 👈 shared signals
+
 from fastapi import APIRouter
 from .user import router as user_router
 from .market import router as market_router
@@ -11,6 +10,7 @@ from .password import router as password_router
 from .watchlist import router as watchlist_router
 from .order import router as order_router   
 from .levels import router as levels_router 
+from .signal import router as signal_router
 
 api_router = APIRouter()
 
@@ -21,12 +21,6 @@ api_router.include_router(password_router)
 api_router.include_router(watchlist_router)
 api_router.include_router(order_router)
 api_router.include_router(levels_router)
+api_router.include_router(signal_router)
 
 
-
-@api_router.get("/signals")
-async def get_signals():
-    return {
-        "signals": trading_signals,
-        "last_updated": datetime.utcnow().isoformat()
-    }

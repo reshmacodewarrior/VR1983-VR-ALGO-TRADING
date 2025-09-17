@@ -24,10 +24,10 @@ def start_scheduler():
         # Create scheduler instance
         scheduler = BackgroundScheduler()
         
-        # Add the job to run every 15 minutes
+        # Add the job to run every 3 minutes
         scheduler.add_job(
             check_stocks_and_trigger,
-            trigger=IntervalTrigger(minutes=15),  # Run every 15 minutes
+            trigger=IntervalTrigger(minutes=3),  # Run every 3 minutes
             id='algo_trading_checker',
             name='Algorithmic trading signal generator',
             replace_existing=True
@@ -36,7 +36,7 @@ def start_scheduler():
         # Start the scheduler
         scheduler.start()
         logger.info("✅ Background scheduler started successfully")
-        logger.info("📊 Will check for trading signals every 15 minutes")
+        logger.info("📊 Will check for trading signals every 3 minutes")
         
         # Run immediately once on startup
         check_stocks_and_trigger()

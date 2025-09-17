@@ -16,7 +16,7 @@ def simple_moving_average_crossover(symbol: str) -> dict:
     try:
         # Download historical data - using very short periods for frequent signals
         stock = yf.Ticker(symbol)
-        hist = stock.history(period="7d", interval="15m")  # 15-min intervals for last 7 days
+        hist = stock.history(period="1d", interval="1m")  # 15-min intervals for last 7 days
         
         if len(hist) < 20:  # Need enough data points
             return None
