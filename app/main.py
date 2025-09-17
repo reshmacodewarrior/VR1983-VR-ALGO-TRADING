@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from venv import logger
 sys.path.append(str(Path(__file__).parent.parent))
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -24,3 +25,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def startup_event():
+    print("🔥 DEBUG: Startup event called")  # <--- add this
+    logger.info("🚀 Starting VR Algo Trading Application...")
+    from app.services.scheduler import start_scheduler
+    start_scheduler()

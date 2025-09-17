@@ -1,70 +1,18 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Plot from "react-plotly.js";
 
 const CandlestickChart = ({ data, symbol }) => {
-  const [timeframe, setTimeframe] = useState("1D");
   const [chartType, setChartType] = useState("candlestick");
-  const [indicators, setIndicators] = useState([]);
   const [buySignal, setBuySignal] = useState(null);
   const [sellSignal, setSellSignal] = useState(null);
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [tradingMode, setTradingMode] = useState("manual");
   const [autoTrades, setAutoTrades] = useState([]);
-
-  // Define buy and sell levels
-  const buyLevels = [706, 668];
-  const sellLevels = [703, 667];
+  const [currentSignal, setCurrentSignal] = useState(null);
+  const [holdSignal, setHoldSignal] = useState(null);
+  const [executingOrder, setExecutingOrder] = useState(null);
 
   const API_BASE_URL = "http://192.168.1.58:8000";
-
-  useEffect(() => {
-    if (!data || data.length === 0) return;
-
-    const latestData = data[data.length - 1];
-    const currentPrice = latestData.close;
-    
-    // Get current Indian time
-    const nowIST = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
-    const currentTime = new Date(nowIST);
-
-    // Check if price crossed any buy levels
-    for (const level of buyLevels) {
-      if (currentPrice >= level) {
-        const newSignal = {
-          level,
-          price: currentPrice,
-          time: currentTime,
-          message: `BUY signal: Price ${currentPrice} crossed above ${level}`,
-        };
-        setBuySignal(newSignal);
-        
-        // Execute automatic buy if in auto mode
-        if (tradingMode === "auto") {
-          executeAutoBuy(newSignal);
-        }
-        break;
-      }
-    }
-
-    // Check if price crossed any sell levels
-    for (const level of sellLevels) {
-      if (currentPrice <= level) {
-        const newSignal = {
-          level,
-          price: currentPrice,
-          time: currentTime,
-          message: `SELL signal: Price ${currentPrice} crossed below ${level}`,
-        };
-        setSellSignal(newSignal);
-        
-        // Execute automatic sell if in auto mode
-        if (tradingMode === "auto") {
-          executeAutoSell(newSignal);
-        }
-        break;
-      }
-    }
-  }, [data, tradingMode]);
 
   // Function to place order in database
   const placeOrder = async (orderData) => {
@@ -100,15 +48,16 @@ const CandlestickChart = ({ data, symbol }) => {
 
     const latestData = data[data.length - 1];
 
-    // Check if we already executed this trade to avoid duplicates
-    const tradeExists = autoTrades.some(
-      (trade) =>
-        trade.type === "BUY" &&
-        trade.level === signal.level &&
-        trade.time.getTime() === signal.time.getTime()
-    );
+    // Show executing message for 1 second
+    setExecutingOrder({
+      type: "BUY",
+      price: latestData.close,
+      symbol: symbol,
+      message: "Auto-executing BUY order..."
+    });
 
-    if (tradeExists) return;
+    // Wait for 1 second before placing the order
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Create order data structure
     const orderData = {
@@ -135,6 +84,7 @@ const CandlestickChart = ({ data, symbol }) => {
         symbol: symbol,
         orderData: { ...orderData, executed_at: result.timestamp || new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) },
         mode: "auto",
+        signal: currentSignal?.type || "Automatic BUY"
       };
 
       setTransactionHistory((prev) => [...prev, newTransaction]);
@@ -147,9 +97,13 @@ const CandlestickChart = ({ data, symbol }) => {
         },
       ]);
 
+      // Clear executing message
+      setExecutingOrder(null);
+      
       console.log(`Auto BUY executed at ${latestData.close}`);
     } catch (error) {
       console.error("Auto buy order error:", error);
+      setExecutingOrder(null);
     }
   };
 
@@ -159,15 +113,16 @@ const CandlestickChart = ({ data, symbol }) => {
 
     const latestData = data[data.length - 1];
 
-    // Check if we already executed this trade to avoid duplicates
-    const tradeExists = autoTrades.some(
-      (trade) =>
-        trade.type === "SELL" &&
-        trade.level === signal.level &&
-        trade.time.getTime() === signal.time.getTime()
-    );
+    // Show executing message for 1 second
+    setExecutingOrder({
+      type: "SELL",
+      price: latestData.close,
+      symbol: symbol,
+      message: "Auto-executing SELL order..."
+    });
 
-    if (tradeExists) return;
+    // Wait for 1 second before placing the order
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Create order data structure
     const orderData = {
@@ -194,6 +149,7 @@ const CandlestickChart = ({ data, symbol }) => {
         symbol: symbol,
         orderData: { ...orderData, executed_at: result.timestamp || new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) },
         mode: "auto",
+        signal: currentSignal?.type || "Automatic SELL"
       };
 
       setTransactionHistory((prev) => [...prev, newTransaction]);
@@ -206,11 +162,100 @@ const CandlestickChart = ({ data, symbol }) => {
         },
       ]);
 
+      // Clear executing message
+      setExecutingOrder(null);
+      
       console.log(`Auto SELL executed at ${latestData.close}`);
     } catch (error) {
       console.error("Auto sell order error:", error);
+      setExecutingOrder(null);
     }
   };
+
+  // Handle automatic trading based on signals
+  const handleAutoTrading = useCallback(async (signal) => {
+    if (!data || data.length === 0) return;
+
+    const latestData = data[data.length - 1];
+    const currentPrice = latestData.close;
+    
+    // Get current Indian time
+    const nowIST = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+    const currentTime = new Date(nowIST);
+
+    // Check if we already executed this trade to avoid duplicates
+    const tradeExists = autoTrades.some(
+      (trade) =>
+        trade.type === signal.signal &&
+        trade.time.getTime() === currentTime.getTime()
+    );
+
+    if (tradeExists) return;
+
+    if (signal.signal === "BUY") {
+      const newSignal = {
+        level: signal.price || currentPrice,
+        price: currentPrice,
+        time: currentTime,
+        message: `BUY signal: ${signal.type || "Automatic BUY signal"}`,
+      };
+      setBuySignal(newSignal);
+      executeAutoBuy(newSignal);
+    } 
+    else if (signal.signal === "SELL") {
+      const newSignal = {
+        level: signal.price || currentPrice,
+        price: currentPrice,
+        time: currentTime,
+        message: `SELL signal: ${signal.type || "Automatic SELL signal"}`,
+      };
+      setSellSignal(newSignal);
+      executeAutoSell(newSignal);
+    }
+    else if (signal.signal === "HOLD") {
+      const newSignal = {
+        level: signal.price || currentPrice,
+        price: currentPrice,
+        time: currentTime,
+        message: `HOLD signal: ${signal.type || "No action needed"}`
+      };
+      setHoldSignal(newSignal);
+      console.log(`HOLD signal for ${symbol}: ${signal.type || "No action needed"}`);
+    }
+  }, [data, autoTrades, symbol, currentSignal, executeAutoBuy, executeAutoSell]);
+
+  // Fetch signals from API
+  useEffect(() => {
+    const fetchSignals = async () => {
+      try {
+        console.log("Fetching signals...");
+        const response = await fetch(`${API_BASE_URL}/api/signals`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch signals");
+        }
+        const signalsData = await response.json();
+        
+        // Find the current symbol's signal
+        const symbolSignal = signalsData.signals.find(s => s.symbol === symbol.replace(".NS", ".MS"));
+        if (symbolSignal) {
+          setCurrentSignal(symbolSignal);
+          
+          // Auto-execute orders if in auto mode
+          if (tradingMode === "auto") {
+            handleAutoTrading(symbolSignal);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching signals:", error);
+      }
+    };
+
+    fetchSignals();
+    // Set up interval to refresh signals periodically (every minute)
+    const intervalId = setInterval(fetchSignals, 300000);
+
+    return () => clearInterval(intervalId);
+  }, [symbol, tradingMode, handleAutoTrading]);
 
   const handleBuy = async () => {
     if (!data || data.length === 0) return;
@@ -315,21 +360,6 @@ const CandlestickChart = ({ data, symbol }) => {
   const highs = data.map((item) => item.high);
   const lows = data.map((item) => item.low);
   const closes = data.map((item) => item.close);
-  const volumes = data.map((item) => item.volume);
-
-  // Calculate simple moving average (SMA) for 20 periods
-  const calculateSMA = (data, period) => {
-    return data.map((val, idx, arr) => {
-      if (idx < period - 1) return null;
-      return (
-        arr
-          .slice(idx - period + 1, idx + 1)
-          .reduce((sum, val) => sum + val, 0) / period
-      );
-    });
-  };
-
-  const sma20 = calculateSMA(closes, 20);
 
   // Create chart traces based on chart type
   let priceTrace;
@@ -358,114 +388,52 @@ const CandlestickChart = ({ data, symbol }) => {
     };
   }
 
-  // Create volume trace
-  const colors = closes.map((close, i) =>
-    close >= opens[i] ? "#10b981" : "#ef4444"
-  );
+  // Create signal level traces if we have a current signal with price
+  const signalTraces = [];
+  if (currentSignal && currentSignal.price > 0) {
+    const signalColor = currentSignal.signal === "BUY" ? "#10b981" : 
+                       currentSignal.signal === "SELL" ? "#ef4444" : "#f59e0b";
+    
+    signalTraces.push({
+      x: dates,
+      y: Array(dates.length).fill(currentSignal.price),
+      type: "scatter",
+      mode: "lines",
+      name: `${currentSignal.signal} ${currentSignal.price}`,
+      line: {
+        color: signalColor,
+        width: 2,
+        dash: "dash",
+      },
+      yaxis: "y1",
+    });
+  }
 
-  const volumeTrace = {
-    x: dates,
-    y: volumes,
-    type: "bar",
-    name: "Volume",
-    marker: { color: colors },
-    opacity: 0.7,
-    yaxis: "y2",
-  };
-
-  // Create SMA trace if selected
-  const smaTrace = indicators.includes("sma")
-    ? {
-        x: dates,
-        y: sma20,
-        type: "scatter",
-        mode: "lines",
-        name: "SMA 20",
-        line: { color: "#f59e0b", width: 2 },
-        yaxis: "y1",
-      }
-    : null;
-
-  // Create buy level traces (green lines)
-  const buyTraces = buyLevels.map((level) => ({
-    x: dates,
-    y: Array(dates.length).fill(level),
-    type: "scatter",
-    mode: "lines",
-    name: `Buy ${level}`,
-    line: {
-      color: "#10b981",
-      width: 2,
-      dash: "dash",
-    },
-    yaxis: "y1",
-  }));
-
-  // Create sell level traces (red lines)
-  const sellTraces = sellLevels.map((level) => ({
-    x: dates,
-    y: Array(dates.length).fill(level),
-    type: "scatter",
-    mode: "lines",
-    name: `Sell ${level}`,
-    line: {
-      color: "#ef4444",
-      width: 2,
-      dash: "dash",
-    },
-    yaxis: "y1",
-  }));
-  
-
-  // Filter traces to remove any null values
+  // Final chart data
   const chartData = [
+    ...signalTraces,
     priceTrace,
-    volumeTrace,
-    smaTrace,
-    ...buyTraces,
-    ...sellTraces,
   ].filter((trace) => trace !== null);
 
   const layout = {
     title: {
-      text: `${symbol} | Buy: ${buyLevels.join(", ")} | Sell: ${sellLevels.join(
-        ", "
-      )}`,
+      text: `${symbol} Chart${currentSignal ? ` - ${currentSignal.signal} Signal` : ''}`,
       font: { color: "#e5e7eb", size: 20 },
       x: 0.05,
       xanchor: "left",
     },
     height: 600,
     showlegend: true,
-    legend: {
-      x: 0.02,
-      y: 0.98,
-      bgcolor: "rgba(0,0,0,0.5)",
-      font: { color: "#e5e7eb" },
-      bordercolor: "#374151",
-      borderwidth: 1,
-    },
     xaxis: {
       rangeslider: { visible: false },
       title: { text: "Date", font: { color: "#9ca3af" } },
       gridcolor: "#374151",
-      zerolinecolor: "#374151",
       tickfont: { color: "#9ca3af" },
     },
     yaxis: {
       title: { text: "Price (INR)", font: { color: "#9ca3af" } },
-      domain: [0.25, 1],
       tickformat: "₹.2f",
       gridcolor: "#374151",
-      zerolinecolor: "#374151",
-      tickfont: { color: "#9ca3af" },
-    },
-    yaxis2: {
-      title: { text: "Volume", font: { color: "#9ca3af" } },
-      domain: [0, 0.2],
-      side: "right",
-      gridcolor: "#374151",
-      zerolinecolor: "#374151",
       tickfont: { color: "#9ca3af" },
     },
     margin: { l: 60, r: 60, t: 80, b: 60 },
@@ -473,43 +441,8 @@ const CandlestickChart = ({ data, symbol }) => {
     paper_bgcolor: "#111827",
     font: { family: "Inter, sans-serif" },
     hovermode: "x unified",
-    hoverlabel: {
-      bgcolor: "#1f2937",
-      font: { color: "#e5e7eb" },
-      bordercolor: "#374151",
-    },
-    shapes: [
-      // Add horizontal lines for buy levels
-      ...buyLevels.map((level) => ({
-        type: "line",
-        x0: dates[0],
-        y0: level,
-        x1: dates[dates.length - 1],
-        y1: level,
-        line: {
-          color: "#10b981",
-          width: 2,
-          dash: "dash",
-        },
-        yref: "y1",
-      })),
-      // Add horizontal lines for sell levels
-      ...sellLevels.map((level) => ({
-        type: "line",
-        x0: dates[0],
-        y0: level,
-        x1: dates[dates.length - 1],
-        y1: level,
-        line: {
-          color: "#ef4444",
-          width: 2,
-          dash: "dash",
-        },
-        yref: "y1",
-      })),
-    ],
   };
-
+  
   const config = {
     responsive: true,
     displayModeBar: true,
@@ -537,7 +470,6 @@ const CandlestickChart = ({ data, symbol }) => {
     { value: "candlestick", label: "Candlestick" },
     { value: "line", label: "Line" },
   ];
-  const availableIndicators = [{ value: "sma", label: "SMA 20" }];
 
   return (
     <div className="w-full bg-gradient-to-br from-gray-900 to-blue-900 shadow-2xl rounded-xl p-4 border border-gray-700">
@@ -582,16 +514,47 @@ const CandlestickChart = ({ data, symbol }) => {
         }`}
       >
         {tradingMode === "auto"
-          ? "AUTOMATIC TRADING MODE: Orders will be executed automatically when price crosses buy/sell levels"
+          ? "AUTOMATIC TRADING MODE: Orders will be executed automatically based on algorithm signals"
           : "MANUAL TRADING MODE: Click Buy/Sell buttons to execute orders manually"}
       </div>
 
+      {/* Current Signal Display */}
+      {currentSignal && (
+        <div className={`mb-4 p-3 rounded-lg text-center font-semibold ${
+          currentSignal.signal === "BUY" ? "bg-green-900 text-green-200" :
+          currentSignal.signal === "SELL" ? "bg-red-900 text-red-200" :
+          "bg-yellow-900 text-yellow-200"
+        }`}>
+          <strong>ALGORITHM SIGNAL:</strong> {currentSignal.signal} - {currentSignal.type}
+          {currentSignal.price > 0 && ` at ₹${currentSignal.price}`}
+          {tradingMode === "auto" && currentSignal.signal !== "HOLD" && 
+            " (Will be executed automatically)"}
+        </div>
+      )}
+
+      {/* Executing Order Message */}
+      {executingOrder && (
+        <div className={`mb-4 p-3 rounded-lg text-center font-semibold ${
+          executingOrder.type === "BUY" ? "bg-blue-900 text-blue-200" :
+          executingOrder.type === "SELL" ? "bg-blue-900 text-blue-200" :
+          "bg-blue-900 text-blue-200"
+        }`}>
+          <strong>EXECUTING {executingOrder.type} ORDER:</strong> {executingOrder.message}
+        </div>
+      )}
+
       {/* Signal Alerts */}
       <div className="mb-4">
+        {holdSignal && (
+          <div className="bg-yellow-900 text-yellow-200 p-3 rounded-lg mb-2 flex justify-between items-center">
+            <strong>HOLD SIGNAL:</strong> {holdSignal.message}
+          </div>
+        )}
+        
         {buySignal && (
           <div className="bg-green-900 text-green-200 p-3 rounded-lg mb-2 flex justify-between items-center">
             <div>
-              <strong>BUY SIGNAL</strong>: {buySignal.message}
+              <strong>BUY SIGNAL EXECUTED</strong>: {buySignal.message}
               {tradingMode === "auto" && (
                 <span className="ml-2 text-yellow-300">(Auto-executed)</span>
               )}
@@ -610,7 +573,7 @@ const CandlestickChart = ({ data, symbol }) => {
         {sellSignal && (
           <div className="bg-red-900 text-red-200 p-3 rounded-lg mb-2 flex justify-between items-center">
             <div>
-              <strong>SELL SIGNAL</strong>: {sellSignal.message}
+              <strong>SELL SIGNAL EXECUTED</strong>: {sellSignal.message}
               {tradingMode === "auto" && (
                 <span className="ml-2 text-yellow-300">(Auto-executed)</span>
               )}
@@ -643,7 +606,7 @@ const CandlestickChart = ({ data, symbol }) => {
                 onClick={() => setChartType(type.value)}
               >
                 {type.label}
-              </button>
+                </button>
             ))}
           </div>
         </div>
@@ -664,36 +627,6 @@ const CandlestickChart = ({ data, symbol }) => {
             </button>
           </div>
         )}
-
-        <div className="flex items-center gap-2">
-          <span className="text-gray-400 text-sm font-medium">Indicators:</span>
-          <div className="flex bg-gray-800 rounded-lg p-1">
-            {availableIndicators.map((indicator) => {
-              const isActive = indicators.includes(indicator.value);
-              return (
-                <button
-                  key={indicator.value}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                    isActive
-                      ? "bg-purple-600 text-white"
-                      : "text-gray-400 hover:text-white hover:bg-gray-700"
-                  }`}
-                  onClick={() => {
-                    if (isActive) {
-                      setIndicators(
-                        indicators.filter((i) => i !== indicator.value)
-                      );
-                    } else {
-                      setIndicators([...indicators, indicator.value]);
-                    }
-                  }}
-                >
-                  {indicator.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
 
       {/* Price Summary */}
@@ -728,14 +661,6 @@ const CandlestickChart = ({ data, symbol }) => {
             ₹{closes[closes.length - 1]?.toFixed(2) || "0.00"}
           </div>
         </div>
-        <div className="bg-gray-800 rounded-lg p-3 min-w-[120px]">
-          <div className="text-gray-400 text-sm">Volume</div>
-          <div className="text-blue-400 font-semibold">
-            {volumes[volumes.length - 1]
-              ? (volumes[volumes.length - 1] / 1000000).toFixed(2) + "M"
-              : "0"}
-          </div>
-        </div>
       </div>
 
       {/* Transaction History */}
@@ -765,6 +690,9 @@ const CandlestickChart = ({ data, symbol }) => {
                         timeZone: "Asia/Kolkata",
                       })
                   }
+                  {transaction.signal && (
+                    <span className="text-gray-400 text-xs"> - {transaction.signal}</span>
+                  )}
                   <br />
                   <span className="text-gray-400 text-xs">
                     Order ID: {transaction.orderData.order_id}

@@ -16,3 +16,4 @@ trades_collection = db.get_collection("trades")
 holdings_collection = db.get_collection("holdings")
 balance_collection = db.get_collection("balance")
 levels_collection = db.get_collection("levels")
+
