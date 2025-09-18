@@ -106,7 +106,7 @@ export default function SideNavbar() {
               <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-400">
                 VR ALGO TRADING
               </h1>
-              <p className="text-xs text-blue-300">Next Generation Platform</p>
+              <p className="text-xs text-blue-300">Next Generation Trading Platform</p>
             </div>
           )}
         </div>

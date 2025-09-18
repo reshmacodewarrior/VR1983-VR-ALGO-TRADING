@@ -62,6 +62,43 @@ export const stockAPI = {
   },
 };
 
+
+
+export const placeOrder = async (orderData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/order`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(orderData),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to place order");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error placing order:", error);
+    throw error;
+  }
+};
+
+export const fetchSignals = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/signals`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch signals");
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching signals:", error);
+    throw error;
+  }
+};
+
 export default api;
 
 // export const fetchProfileData = () => {
