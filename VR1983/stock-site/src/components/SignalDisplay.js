@@ -1,91 +1,70 @@
-import React from 'react';
+import React from "react";
+import { Bell } from "lucide-react"; // ✅ horn icon
 
-const SignalDisplay = ({ 
-  currentSignal, 
-  tradingMode, 
-  executingOrder, 
-  holdSignal, 
-  buySignal, 
-  sellSignal, 
-  handleBuy, 
-  handleSell 
-}) => (
-  <>
-    <div className={`mb-4 p-3 rounded-lg text-center font-semibold ${
-      tradingMode === "auto"
-        ? "bg-yellow-900 text-yellow-200"
-        : "bg-blue-900 text-blue-200"
-    }`}>
-      {tradingMode === "auto"
-        ? "AUTOMATIC TRADING MODE: Orders will be executed automatically based on algorithm signals"
-        : "MANUAL TRADING MODE: Click Buy/Sell buttons to execute orders manually"}
-    </div>
-
-    {currentSignal && (
-      <div className={`mb-4 p-3 rounded-lg text-center font-semibold ${
-        currentSignal.signal === "BUY" ? "bg-green-900 text-green-200" :
-        currentSignal.signal === "SELL" ? "bg-red-900 text-red-200" :
-        "bg-yellow-900 text-yellow-200"
-      }`}>
-        <strong>ALGORITHM SIGNAL:</strong> {currentSignal.signal} - {currentSignal.type}
-        {currentSignal.price > 0 && ` at ₹${currentSignal.price}`}
-        {tradingMode === "auto" && currentSignal.signal !== "HOLD" && 
-          " (Will be executed automatically)"}
-      </div>
-    )}
-
-    {executingOrder && (
-      <div className="mb-4 p-3 rounded-lg text-center font-semibold bg-blue-900 text-blue-200">
-        <strong>EXECUTING {executingOrder.type} ORDER:</strong> {executingOrder.message}
-      </div>
-    )}
-
-    <div className="mb-4">
-      {holdSignal && (
-        <div className="bg-yellow-900 text-yellow-200 p-3 rounded-lg mb-2">
-          <strong>HOLD SIGNAL:</strong> {holdSignal.message}
-        </div>
+const SignalDisplay = ({
+  currentSignal,
+  executingOrder,
+  holdSignal,
+  buySignal,
+  sellSignal,
+  tradingMode,
+  handleBuy,
+  handleSell,
+  autoTradeCount,
+}) => {
+  return (
+    <div className="mb-4 p-3 rounded-lg bg-gray-800 text-gray-200">
+      {executingOrder ? (
+        <p>
+          ⚡ {executingOrder.message} at ₹{executingOrder.price}
+        </p>
+      ) : holdSignal ? (
+        <p className="flex items-center gap-2 text-yellow-400">
+          <Bell size={18} /> HOLD Signal Active — No trades executed
+        </p>
+      ) : currentSignal ? (
+        <p>
+          🔔 Current Signal:{" "}
+          <span
+            className={
+              currentSignal.signal === "BUY"
+                ? "text-green-400"
+                : currentSignal.signal === "SELL"
+                ? "text-red-400"
+                : "text-yellow-400"
+            }
+          >
+            {currentSignal.signal}
+          </span>
+        </p>
+      ) : (
+        <p>No active signal</p>
       )}
-      
-      {buySignal && (
-        <div className="bg-green-900 text-green-200 p-3 rounded-lg mb-2 flex justify-between items-center">
-          <div>
-            <strong>BUY SIGNAL EXECUTED</strong>: {buySignal.message}
-            {tradingMode === "auto" && (
-              <span className="ml-2 text-yellow-300">(Auto-executed)</span>
-            )}
-          </div>
-          {tradingMode === "manual" && (
-            <button
-              onClick={handleBuy}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
-            >
-              Buy 1 Stock
-            </button>
-          )}
+
+      {tradingMode === "manual" && (
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={handleBuy}
+            className="bg-green-600 px-3 py-1 rounded hover:bg-green-700"
+          >
+            BUY
+          </button>
+          <button
+            onClick={handleSell}
+            className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
+          >
+            SELL
+          </button>
         </div>
       )}
 
-      {sellSignal && (
-        <div className="bg-red-900 text-red-200 p-3 rounded-lg mb-2 flex justify-between items-center">
-          <div>
-            <strong>SELL SIGNAL EXECUTED</strong>: {sellSignal.message}
-            {tradingMode === "auto" && (
-              <span className="ml-2 text-yellow-300">(Auto-executed)</span>
-            )}
-          </div>
-          {tradingMode === "manual" && (
-            <button
-              onClick={handleSell}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
-            >
-              Sell 1 Stock
-            </button>
-          )}
-        </div>
+      {tradingMode === "auto" && (
+        <p className="text-sm text-gray-400 mt-2">
+           Auto trading active (Executed {autoTradeCount}/6 trades)
+        </p>
       )}
     </div>
-  </>
-);
+  );
+};
 
 export default SignalDisplay;

@@ -8,13 +8,8 @@ import TransactionHistory from "./TransactionHistory";
 import { placeOrder, fetchSignals } from "../services/api";
 
 const CandlestickChart = ({ data, symbol }) => {
-  /**
-   * -------------------------------
-   * STATE
-   * -------------------------------
-   */
   const [chartType, setChartType] = useState("candlestick");
-  const [quantity, setQuantity] = useState(1); // ✅ NEW
+  const [quantity, setQuantity] = useState(1);
   const [buySignal, setBuySignal] = useState(null);
   const [sellSignal, setSellSignal] = useState(null);
   const [holdSignal, setHoldSignal] = useState(null);
@@ -23,16 +18,21 @@ const CandlestickChart = ({ data, symbol }) => {
   const [tradingMode, setTradingMode] = useState("manual");
   const [currentSignal, setCurrentSignal] = useState(null);
   const [executingOrder, setExecutingOrder] = useState(null);
+  const [autoTradeCount, setAutoTradeCount] = useState(0); // ✅ auto trade limiter
 
-  /**
-   * -------------------------------
-   * HELPERS
-   * -------------------------------
-   */
+  // -------------------------------
+  // Helpers
+  // -------------------------------
   const recordTransaction = (orderData, type, mode, result) => {
+    const executedPrice =
+      orderData?.average_price ??
+      orderData?.price ??
+      orderData?.order_price ??
+      0;
+
     const newTransaction = {
       type,
-      price: orderData.average_price,
+      price: executedPrice,
       time:
         result?.timestamp ||
         new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
@@ -45,14 +45,13 @@ const CandlestickChart = ({ data, symbol }) => {
       },
       mode,
     };
+
     setTransactionHistory((prev) => [...prev, newTransaction]);
   };
 
-  /**
-   * -------------------------------
-   * ORDER EXECUTION (Manual)
-   * -------------------------------
-   */
+  // -------------------------------
+  // Manual Orders
+  // -------------------------------
   const handleBuy = async () => {
     if (!data?.length) return;
     const latest = data[data.length - 1];
@@ -63,7 +62,7 @@ const CandlestickChart = ({ data, symbol }) => {
       symbol,
       exchange: "NSE",
       transaction_type: "BUY",
-      quantity, // ✅ dynamic
+      quantity,
       order_type: "MARKET",
       product: "MIS",
       status: "COMPLETE",
@@ -90,7 +89,7 @@ const CandlestickChart = ({ data, symbol }) => {
       symbol,
       exchange: "NSE",
       transaction_type: "SELL",
-      quantity, // ✅ dynamic
+      quantity,
       order_type: "MARKET",
       product: "MIS",
       status: "COMPLETE",
@@ -107,16 +106,19 @@ const CandlestickChart = ({ data, symbol }) => {
     }
   };
 
-  /**
-   * -------------------------------
-   * AUTO TRADING
-   * -------------------------------
-   */
+  // -------------------------------
+  // Auto Trading
+  // -------------------------------
   const executeAutoOrder = useCallback(
     async (type, signal) => {
       if (!data?.length) return;
-      const latest = data[data.length - 1];
 
+      if (autoTradeCount >= 6) {
+        console.warn("🚫 Auto trade limit reached (6). No more auto trades.");
+        return;
+      }
+
+      const latest = data[data.length - 1];
       setExecutingOrder({
         type,
         price: latest.close,
@@ -132,7 +134,7 @@ const CandlestickChart = ({ data, symbol }) => {
         symbol,
         exchange: "NSE",
         transaction_type: type,
-        quantity, // ✅ dynamic
+        quantity,
         order_type: "MARKET",
         product: "MIS",
         status: "COMPLETE",
@@ -146,20 +148,19 @@ const CandlestickChart = ({ data, symbol }) => {
           ...prev,
           { type, level: signal.level, time: signal.time },
         ]);
+        setAutoTradeCount((prev) => prev + 1); // ✅ count increment
       } catch (error) {
         console.error(`Auto ${type} order error:`, error);
       } finally {
         setExecutingOrder(null);
       }
     },
-    [data, symbol, quantity]
+    [data, symbol, quantity, autoTradeCount]
   );
 
-  /**
-   * -------------------------------
-   * SIGNAL FETCH
-   * -------------------------------
-   */
+  // -------------------------------
+  // Signal Fetch
+  // -------------------------------
   useEffect(() => {
     const loadSignals = async () => {
       try {
@@ -174,10 +175,11 @@ const CandlestickChart = ({ data, symbol }) => {
 
         if (match) {
           setCurrentSignal(match);
+
           if (tradingMode === "auto") {
             if (match.signal === "BUY") executeAutoOrder("BUY", match);
             if (match.signal === "SELL") executeAutoOrder("SELL", match);
-            if (match.signal === "HOLD") setHoldSignal(match);
+            if (match.signal === "HOLD") setHoldSignal(match); // ✅ show horn icon
           }
         } else {
           setCurrentSignal(null);
@@ -188,15 +190,13 @@ const CandlestickChart = ({ data, symbol }) => {
     };
 
     loadSignals();
-    const intervalId = setInterval(loadSignals, 300000);
+    const intervalId = setInterval(loadSignals, 30000);
     return () => clearInterval(intervalId);
   }, [symbol, tradingMode, executeAutoOrder]);
 
-  /**
-   * -------------------------------
-   * RENDER CHART
-   * -------------------------------
-   */
+  // -------------------------------
+  // Render
+  // -------------------------------
   if (!data?.length) {
     return (
       <div className="flex flex-col items-center justify-center h-96 bg-gradient-to-br from-gray-900 to-blue-900 text-gray-300 rounded-xl shadow-2xl p-6">
@@ -208,10 +208,10 @@ const CandlestickChart = ({ data, symbol }) => {
   }
 
   const dates = data.map((d) => new Date(d.date));
-  const opens = data.map((d) => d.open);
-  const highs = data.map((d) => d.high);
-  const lows = data.map((d) => d.low);
-  const closes = data.map((d) => d.close);
+  const opens = data.map((d) => d.Open ?? d.open);
+  const highs = data.map((d) => d.High ?? d.high);
+  const lows = data.map((d) => d.Low ?? d.low);
+  const closes = data.map((d) => d.Close ?? d.close);
 
   const priceTrace =
     chartType === "candlestick"
@@ -258,12 +258,13 @@ const CandlestickChart = ({ data, symbol }) => {
       <SignalDisplay
         currentSignal={currentSignal}
         executingOrder={executingOrder}
-        holdSignal={holdSignal}
+        holdSignal={holdSignal} // ✅ pass down hold signal
         buySignal={buySignal}
         sellSignal={sellSignal}
         tradingMode={tradingMode}
         handleBuy={handleBuy}
         handleSell={handleSell}
+        autoTradeCount={autoTradeCount} // ✅ show count
       />
 
       <ChartControls

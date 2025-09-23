@@ -12,7 +12,7 @@ export const stockAPI = {
   // Get single stock data
   getStock: async (symbol, period = "1d", interval = "1d") => {
     try {
-      const response = await api.get(`/api/stock/${symbol}`, {
+      const response = await api.get(`/api/market/stock/${symbol}`, {
         params: { period, interval },
       });
       console.log("response-1", response);

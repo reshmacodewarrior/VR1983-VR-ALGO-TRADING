@@ -19,21 +19,22 @@ const TransactionHistory = ({ transactionHistory }) => (
                   : "text-red-400"
               }`}
             >
-              [{transaction.mode.toUpperCase()}] {transaction.type}{" "}
-              {transaction.symbol} at ₹{transaction.price.toFixed(2)} -{" "}
-              {typeof transaction.time === 'string' 
-                ? transaction.time 
+              [{transaction.mode.toUpperCase()}] {transaction.type} {transaction.symbol} at ₹
+              {transaction.price !== undefined ? transaction.price.toFixed(2) : "-"} -{" "}
+              {typeof transaction.time === "string"
+                ? transaction.time
                 : new Date(transaction.time).toLocaleString("en-IN", {
                     timeZone: "Asia/Kolkata",
-                  })
-              }
+                  })}
+
               {transaction.signal && (
                 <span className="text-gray-400 text-xs"> - {transaction.signal}</span>
               )}
               <br />
               <span className="text-gray-400 text-xs">
-                Order ID: {transaction.orderData.order_id}
+                Order ID: {transaction.orderData?.order_id ?? "N/A"}
               </span>
+
             </div>
           ))}
       </div>
