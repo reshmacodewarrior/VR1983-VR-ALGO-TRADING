@@ -60,6 +60,7 @@ export const stockAPI = {
       throw error;
     }
   },
+  
 };
 
 
@@ -95,6 +96,40 @@ export const fetchSignals = async () => {
     return await response.json();
   } catch (error) {
     console.error("Error fetching signals:", error);
+    throw error;
+  }
+};
+export const getWatchlist = async (userId) => {
+  try {
+    const response = await fetch(`/api/watchlist/${userId}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching watchlist:', error);
+    return { watchlist: [] };
+  }
+};
+
+export const addToWatchlist = async (userId, symbol) => {
+  try {
+    const response = await fetch(`/api/watchlist/${userId}/add/${symbol}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Error adding to watchlist:', error);
+    throw error;
+  }
+};
+
+export const removeFromWatchlist = async (userId, symbol) => {
+  try {
+    const response = await fetch(`/api/watchlist/${userId}/remove/${symbol}`, {
+      method: 'DELETE',
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Error removing from watchlist:', error);
     throw error;
   }
 };
