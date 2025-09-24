@@ -50,7 +50,7 @@ function Intraday() {
         throw new Error("No authentication token found");
       }
       
-      const response = await fetch(`${API_BASE_URL}/api/order-view`, {
+      const response = await fetch(`${API_BASE_URL}/api/order-view-panel`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

@@ -4,7 +4,7 @@ import TradingModeToggle from "./TradingModeToggle";
 import SignalDisplay from "./SignalDisplay";
 import ChartControls from "./ChartControls";
 import PriceSummary from "./PriceSummary";
-import TransactionHistory from "./TransactionHistory";
+import Celebration from "./Celebration";
 import { placeOrder, fetchSignals } from "../services/api";
 
 const CandlestickChart = ({ data, symbol }) => {
@@ -15,39 +15,18 @@ const CandlestickChart = ({ data, symbol }) => {
   const [holdSignal, setHoldSignal] = useState(null);
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [autoTrades, setAutoTrades] = useState([]);
+  const [celebrate, setCelebrate] = useState(""); 
   const [tradingMode, setTradingMode] = useState("manual");
   const [currentSignal, setCurrentSignal] = useState(null);
   const [executingOrder, setExecutingOrder] = useState(null);
-  const [autoTradeCount, setAutoTradeCount] = useState(0); // ✅ auto trade limiter
+
+  // ✅ Track executed auto-trades by stock + signal time
+  const [autoTradeTracker, setAutoTradeTracker] = useState({});
 
   // -------------------------------
   // Helpers
   // -------------------------------
-  const recordTransaction = (orderData, type, mode, result) => {
-    const executedPrice =
-      orderData?.average_price ??
-      orderData?.price ??
-      orderData?.order_price ??
-      0;
-
-    const newTransaction = {
-      type,
-      price: executedPrice,
-      time:
-        result?.timestamp ||
-        new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
-      symbol,
-      orderData: {
-        ...orderData,
-        executed_at:
-          result?.timestamp ||
-          new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
-      },
-      mode,
-    };
-
-    setTransactionHistory((prev) => [...prev, newTransaction]);
-  };
+  
 
   // -------------------------------
   // Manual Orders
@@ -71,7 +50,7 @@ const CandlestickChart = ({ data, symbol }) => {
 
     try {
       const result = await placeOrder(orderData);
-      recordTransaction(orderData, "BUY", "manual", result);
+      recordTransaction(orderData, "BUY", "manual", result, latest.close);
       setBuySignal(null);
       console.log(`✅ Bought ${quantity} shares of ${symbol} at ₹${latest.close}`);
     } catch (err) {
@@ -98,7 +77,7 @@ const CandlestickChart = ({ data, symbol }) => {
 
     try {
       const result = await placeOrder(orderData);
-      recordTransaction(orderData, "SELL", "manual", result);
+      recordTransaction(orderData, "SELL", "manual", result, latest.close);
       setSellSignal(null);
       console.log(`✅ Sold ${quantity} shares of ${symbol} at ₹${latest.close}`);
     } catch (err) {
@@ -113,8 +92,10 @@ const CandlestickChart = ({ data, symbol }) => {
     async (type, signal) => {
       if (!data?.length) return;
 
-      if (autoTradeCount >= 6) {
-        console.warn("🚫 Auto trade limit reached (6). No more auto trades.");
+      // ✅ Ensure only one trade per symbol per signal-time
+      const signalKey = `${symbol}_${signal.signal}_${signal.time}`;
+      if (autoTradeTracker[signalKey]) {
+        console.warn(`🚫 Already executed auto ${type} for ${symbol} at ${signal.time}`);
         return;
       }
 
@@ -143,20 +124,58 @@ const CandlestickChart = ({ data, symbol }) => {
 
       try {
         const result = await placeOrder(orderData);
-        recordTransaction(orderData, type, "auto", result);
+        recordTransaction(orderData, type, "auto", result, latest.close);
+
         setAutoTrades((prev) => [
           ...prev,
           { type, level: signal.level, time: signal.time },
         ]);
-        setAutoTradeCount((prev) => prev + 1); // ✅ count increment
+
+        // ✅ Mark this signal as executed
+        setAutoTradeTracker((prev) => ({
+          ...prev,
+          [signalKey]: true,
+        }));
       } catch (error) {
         console.error(`Auto ${type} order error:`, error);
       } finally {
         setExecutingOrder(null);
       }
     },
-    [data, symbol, quantity, autoTradeCount]
+    [data, symbol, quantity, autoTradeTracker]
   );
+  const recordTransaction = (orderData, type, mode, result, fallbackPrice) => {
+  // ✅ Use backend-executed price if available
+  const executedPrice =
+    result?.executed_price ??   // backend price
+    orderData?.average_price ?? // manual/fallback
+    orderData?.price ??
+    orderData?.order_price ??
+    fallbackPrice ??
+    0;
+
+  const newTransaction = {
+    type,
+    price: executedPrice,
+    time:
+      result?.timestamp ||
+      new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+    symbol,
+    orderData: {
+      ...orderData,
+      executed_at:
+        result?.timestamp ||
+        new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+      executed_price: executedPrice, // ✅ store exact backend price
+    },
+    mode,
+  };
+
+  setTransactionHistory((prev) => [...prev, newTransaction]);
+  setCelebrate(
+    `✅ ${mode.toUpperCase()} ${type} executed: ${orderData.quantity} Qty ${symbol} @ ₹${executedPrice}`
+  );
+};
 
   // -------------------------------
   // Signal Fetch
@@ -179,7 +198,7 @@ const CandlestickChart = ({ data, symbol }) => {
           if (tradingMode === "auto") {
             if (match.signal === "BUY") executeAutoOrder("BUY", match);
             if (match.signal === "SELL") executeAutoOrder("SELL", match);
-            if (match.signal === "HOLD") setHoldSignal(match); // ✅ show horn icon
+            if (match.signal === "HOLD") setHoldSignal(match);
           }
         } else {
           setCurrentSignal(null);
@@ -237,6 +256,7 @@ const CandlestickChart = ({ data, symbol }) => {
 
   return (
     <div className="w-full bg-gradient-to-br from-gray-900 to-blue-900 shadow-2xl rounded-xl p-4 border border-gray-700">
+      <Celebration trigger={celebrate} />   {/* 🎉 popup here */}
       <TradingModeToggle
         symbol={symbol}
         tradingMode={tradingMode}
@@ -258,13 +278,13 @@ const CandlestickChart = ({ data, symbol }) => {
       <SignalDisplay
         currentSignal={currentSignal}
         executingOrder={executingOrder}
-        holdSignal={holdSignal} // ✅ pass down hold signal
+        holdSignal={holdSignal}
         buySignal={buySignal}
         sellSignal={sellSignal}
         tradingMode={tradingMode}
         handleBuy={handleBuy}
         handleSell={handleSell}
-        autoTradeCount={autoTradeCount} // ✅ show count
+        autoTradeCount={Object.keys(autoTradeTracker).length} // ✅ count signals executed
       />
 
       <ChartControls
@@ -280,7 +300,6 @@ const CandlestickChart = ({ data, symbol }) => {
       />
 
       <PriceSummary opens={opens} highs={highs} lows={lows} closes={closes} />
-      <TransactionHistory transactionHistory={transactionHistory} />
 
       <div className="border border-gray-700 rounded-xl overflow-hidden">
         <Plot

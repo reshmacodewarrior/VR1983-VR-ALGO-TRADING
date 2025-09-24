@@ -333,3 +333,104 @@ async def get_order_view_table(current_user: UserInDB = Depends(get_current_user
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch order view data"
         )
+    
+from typing import List
+from pydantic import BaseModel
+
+class OrderViewPanelItem(BaseModel):
+    order_id: str
+    symbol: str
+    transaction_type: str
+    order_price: float
+    current_price: float
+    quantity: int
+    profit_loss: float
+    risk_level: str
+    timestamp: str  # ISO format timestamp
+
+
+@router.get("/order-view-panel", response_model=List[OrderViewPanelItem])
+async def get_order_view_panel(current_user: UserInDB = Depends(get_current_user)):
+    """
+    Returns the user's executed orders with full details for the Order View Panel.
+    """
+    trades = await trades_collection.find(
+        {"user_id": current_user.id}
+    ).sort("order_timestamp", -1).to_list(100)
+
+    result = []
+    for trade in trades:
+        symbol = trade["symbol"]
+
+        # Get current market price
+        try:
+            current_price = get_current_market_price(symbol)
+        except:
+            current_price = trade["average_price"]
+
+        # Calculate P&L
+        if trade["transaction_type"].upper() == "BUY":
+            profit_loss = (current_price - trade["average_price"]) * trade["quantity"]
+        else:  # SELL
+            profit_loss = (trade["average_price"] - current_price) * trade["quantity"]
+
+        # Risk Level
+        order_value = trade["average_price"] * trade["quantity"]
+        risk_level = calculate_risk_level(profit_loss, order_value)
+
+        result.append(OrderViewPanelItem(
+            order_id=trade["order_id"],
+            symbol=symbol,
+            transaction_type=trade["transaction_type"],
+            order_price=trade["average_price"],
+            current_price=current_price,
+            quantity=trade["quantity"],
+            profit_loss=round(profit_loss, 2),
+            risk_level=risk_level,
+            timestamp=trade["order_timestamp"].isoformat()
+        ))
+
+    return result
+class HoldingViewItem(BaseModel):
+    symbol: str
+    quantity: int
+    average_price: float
+    current_price: float
+    profit_loss: float
+    risk_level: str
+    exchange: str
+
+
+@router.get("/holding-view", response_model=List[HoldingViewItem])
+async def get_holding_view(current_user: UserInDB = Depends(get_current_user)):
+    """
+    Returns the user's holdings with P&L and risk level.
+    """
+    holdings = await holdings_collection.find(
+        {"user_id": current_user.id}
+    ).to_list(100)
+
+    result = []
+    for h in holdings:
+        try:
+            current_price = get_current_market_price(h["symbol"])
+        except:
+            current_price = h["average_price"]
+
+        profit_loss = (current_price - h["average_price"]) * h["quantity"]
+
+        investment_value = h["average_price"] * h["quantity"]
+        risk_level = calculate_risk_level(profit_loss, investment_value)
+
+        result.append(HoldingViewItem(
+            symbol=h["symbol"],
+            quantity=h["quantity"],
+            average_price=h["average_price"],
+            current_price=current_price,
+            profit_loss=round(profit_loss, 2),
+            risk_level=risk_level,
+            exchange=h.get("exchange", "NSE")
+        ))
+
+    return result
+

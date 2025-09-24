@@ -60,7 +60,7 @@ const SignalDisplay = ({
 
       {tradingMode === "auto" && (
         <p className="text-sm text-gray-400 mt-2">
-           Auto trading active (Executed {autoTradeCount}/6 trades)
+           Auto trading active (Executed {autoTradeCount} trades)
         </p>
       )}
     </div>
