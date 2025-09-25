@@ -14,21 +14,28 @@ const Navigation = ({
   ];
 
   const periodOptions = [
+    
     { value: "1d", label: "1 Day" },
     { value: "5d", label: "5 Days" },
     { value: "1mo", label: "1 Month" },
     { value: "3mo", label: "3 Months" },
     { value: "6mo", label: "6 Months" },
     { value: "1y", label: "1 Year" },
+    { value: "5y", label: "5 Years" },
   ];
 
   const intervalOptions = [
+  
     { value: "1m", label: "1 Min" },
     { value: "5m", label: "5 Min" },
     { value: "15m", label: "15 Min" },
     { value: "30m", label: "30 Min" },
     { value: "1h", label: "1 Hour" },
     { value: "1d", label: "1 Day" },
+    { value: "1mo", label: "1 Month" },
+    { value: "3mo", label: "3 Months" },
+
+
   ];
 
   return (
