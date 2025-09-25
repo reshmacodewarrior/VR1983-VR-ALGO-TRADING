@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pymongo.errors import DuplicateKeyError, OperationFailure
@@ -109,6 +109,68 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during login"
+        )
+
+@router.post("/verify-password")
+async def verify_password(
+    request: Request,
+    password_data: Dict[str, str],
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """
+    Verify user's password and issue a new token if valid
+    """
+    try:
+        # Verify the provided password
+        if not verify_password(password_data["password"], current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect password"
+            )
+        
+        # Create a new access token
+        access_token = create_access_token(data={"sub": current_user.email})
+        
+        logger.info(f"Password verified successfully for user: {current_user.email}")
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "message": "Password verified successfully"
+        }
+        
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password field is required"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during password verification: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during password verification"
+        )
+
+@router.post("/refresh-token")
+async def refresh_token(current_user: UserInDB = Depends(get_current_user)):
+    """
+    Refresh the access token
+    """
+    try:
+        access_token = create_access_token(data={"sub": current_user.email})
+        
+        logger.info(f"Token refreshed for user: {current_user.email}")
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error refreshing token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to refresh token"
         )
 
 @router.get("/profile")

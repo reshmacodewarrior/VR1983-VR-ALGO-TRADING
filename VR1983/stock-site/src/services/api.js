@@ -12,7 +12,7 @@ export const stockAPI = {
   // Get single stock data
   getStock: async (symbol, period = "1d", interval = "1d") => {
     try {
-      const response = await api.get(`/api/stock/${symbol}`, {
+      const response = await api.get(`/api/market/stock/${symbol}`, {
         params: { period, interval },
       });
       console.log("response-1", response);
@@ -60,6 +60,78 @@ export const stockAPI = {
       throw error;
     }
   },
+  
+};
+
+
+
+export const placeOrder = async (orderData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/order`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(orderData),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to place order");
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error placing order:", error);
+    throw error;
+  }
+};
+
+export const fetchSignals = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/signals`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch signals");
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching signals:", error);
+    throw error;
+  }
+};
+export const getWatchlist = async (userId) => {
+  try {
+    const response = await fetch(`/api/watchlist/${userId}`);
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching watchlist:', error);
+    return { watchlist: [] };
+  }
+};
+
+export const addToWatchlist = async (userId, symbol) => {
+  try {
+    const response = await fetch(`/api/watchlist/${userId}/add/${symbol}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Error adding to watchlist:', error);
+    throw error;
+  }
+};
+
+export const removeFromWatchlist = async (userId, symbol) => {
+  try {
+    const response = await fetch(`/api/watchlist/${userId}/remove/${symbol}`, {
+      method: 'DELETE',
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Error removing from watchlist:', error);
+    throw error;
+  }
 };
 
 export default api;

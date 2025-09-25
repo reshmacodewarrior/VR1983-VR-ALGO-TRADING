@@ -217,4 +217,5 @@ class StockDataAPI:
         return results[:100]  # Limit to 100 results
 
 # Create instance of StockDataAPI
+
 stock_api = StockDataAPI()

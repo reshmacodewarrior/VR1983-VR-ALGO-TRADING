@@ -3,3 +3,18 @@
 .font-poppins {
   font-family: "Poppins", sans-serif;
 }
+@keyframes quickFade {
+  0%   { opacity: 0; transform: scale(0.7); }
+  15%  { opacity: 1; transform: scale(1.05); }
+  50%  { opacity: 1; transform: scale(1); }
+  85%  { opacity: 0.6; transform: scale(0.95); }
+  100% { opacity: 0; transform: scale(0.9); }
+}
+
+.animate-quick-fade {
+  animation: quickFade 1.5s ease-out forwards;
+}
+@keyframes slideIn {
+  0%   { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
