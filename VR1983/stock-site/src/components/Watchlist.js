@@ -1,189 +1,350 @@
 import React, { useState, useEffect } from "react";
-import {
-  addToWatchlist,
-  removeFromWatchlist,
-  getWatchlist,
-} from "../services/api";
+import CandlestickChart from "./CandlestickChart";
+import Celebration from "./Celebration";
+import { stockAPI } from "../services/api";
+import { addToWatchlist} from "../services/api"; // Import watchlist function
 
-const Watchlist = ({ onSymbolSelect }) => {
+const SingleStock = ({ period, interval, onSymbolSelect }) => { // Add onSymbolSelect prop
+  const BASE_URL = "http://192.168.1.58:8000";
+
+  // --- State Hooks ---
+  const [symbol, setSymbol] = useState("TATAMOTORS.NS");
+  const [stockData, setStockData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState("chart");
+  const [holdings, setHoldings] = useState([]);
+  const [celebrationMessage, setCelebrationMessage] = useState("");
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [watchlist, setWatchlist] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [recentStocks, setRecentStocks] = useState([]);
+    
+  const [history, setHistory] = useState(
+    JSON.parse(localStorage.getItem("searchHistory") || "[]")
+  );
+
+  // --- Load Watchlist Status ---
+  const loadWatchlistStatus = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await fetch(`${BASE_URL}/api/watchlist/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setWatchlist(data);
+        const inList = data.some(item => 
+          item.symbol === symbol || item.symbol === symbol.replace('.NS', '')
+        );
+        setIsInWatchlist(inList);
+      }
+    } catch (error) {
+      console.error("Error checking watchlist:", error);
+    }
+  };
 
   useEffect(() => {
-    loadWatchlist();
-    loadRecentStocks();
-  }, []);
+    if (symbol) {
+      loadWatchlistStatus();
+    }
+  }, [symbol]);
 
-  const loadWatchlist = async () => {
+  // --- Add to Search History ---
+  const addToHistory = (symbol) => {
+    let updated = [symbol, ...history.filter((s) => s !== symbol)];
+    if (updated.length > 6) updated = updated.slice(0, 6);
+    setHistory(updated);
+    localStorage.setItem("searchHistory", JSON.stringify(updated));
+  };
+
+  // --- Analyze Stock ---
+  const analyzeStock = async () => {
+    if (!symbol) return;
+    setLoading(true);
+    setError(null);
     try {
-      const data = await getWatchlist();
-      setWatchlist(data || []);
-    } catch (error) {
-      console.error("Error loading watchlist:", error);
+      const data = await stockAPI.getStock(symbol, period, interval);
+      setStockData(data);
+      addToHistory(symbol);
+      
+      // Notify parent component about symbol selection
+      if (onSymbolSelect) {
+        onSymbolSelect(symbol);
+      }
+    } catch (err) {
+      setError("Failed to fetch stock data. Please check the symbol.");
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const loadRecentStocks = () => {
-    const recent = JSON.parse(localStorage.getItem("recentStocks") || "[]");
-    setRecentStocks(recent.slice(0, 6));
-  };
-
-  const handleAddToWatchlist = async (symbol) => {
+  // --- Add to Watchlist ---
+  const handleAddToWatchlist = async () => {
     try {
-      await addToWatchlist(symbol);
-      await loadWatchlist();
-      setSearchQuery("");
-      setSearchResults([]);
+      // Extract base symbol without exchange suffix for watchlist
+      const watchlistSymbol = symbol.replace('.NS', '');
+      await addToWatchlist(watchlistSymbol, "NSE");
+      setIsInWatchlist(true);
+      setCelebrationMessage(`Added ${watchlistSymbol} to watchlist!`);
+      
+      // Reload watchlist status
+      await loadWatchlistStatus();
     } catch (error) {
       console.error("Error adding to watchlist:", error);
+      setError("Failed to add to watchlist");
     }
   };
 
-  const handleRemoveFromWatchlist = async (symbol) => {
+  // --- Remove from Watchlist ---
+  const handleRemoveFromWatchlist = async () => {
     try {
-      await removeFromWatchlist(symbol);
-      await loadWatchlist();
+      const watchlistSymbol = symbol.replace('.NS', '');
+      const token = localStorage.getItem("token");
+      
+      const response = await fetch(`${BASE_URL}/api/watchlist/${watchlistSymbol}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        setIsInWatchlist(false);
+        setCelebrationMessage(`Removed ${watchlistSymbol} from watchlist!`);
+        await loadWatchlistStatus();
+      }
     } catch (error) {
       console.error("Error removing from watchlist:", error);
+      setError("Failed to remove from watchlist");
     }
   };
 
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-    if (query.length > 1) {
-      const mockResults = [
-        "RELIANCE",
-        "TATAMOTORS",
-        "INFY",
-        "TCS",
-        "HDFC",
-        "ICICIBANK",
-        "SBIN",
-        "WIPRO",
-        "MARUTI",
-        "ONGC",
-        "ITC",
-        "HINDUNILVR",
-      ].filter((stock) =>
-        stock.toLowerCase().includes(query.toLowerCase())
+  // --- Fetch Holdings ---
+  const fetchHoldings = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const res = await fetch(`${BASE_URL}/api/holding-view`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setHoldings(data);
+      } else console.error("Holdings API error:", res.status);
+    } catch (err) {
+      console.error("Error fetching holdings:", err);
+    }
+  };
+
+  // --- Place Order (Buy/Sell) ---
+  const placeOrder = async (symbol, type, qty, exchange = "NSE") => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Please login first");
+        return;
+      }
+
+      let formattedSymbol = symbol;
+      if (exchange === "NSE" && !symbol.includes(".")) formattedSymbol = `${symbol}.NS`;
+
+      const orderData = {
+        symbol: formattedSymbol,
+        exchange,
+        transaction_type: type.toUpperCase(),
+        quantity: parseInt(qty),
+        order_type: "MARKET",
+        product: "CNC",
+      };
+
+      const res = await fetch(`${BASE_URL}/api/order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(orderData),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setCelebrationMessage(`${type} order placed! Order ID: ${result.order_id}`);
+        await fetchHoldings();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Failed to place order: ${errorData.detail || "Unknown error"}`);
+      }
+    } catch (err) {
+      console.error("Order error:", err);
+      alert("Server error placing order");
+    }
+  };
+
+  // --- Holdings List Subcomponent ---
+  const HoldingsList = () => {
+    if (!holdings.length)
+      return (
+        <div className="p-4 bg-gray-50 rounded-lg shadow">
+          <h3 className="text-lg-green font-medium mb-4">My Holdings</h3>
+          <p className="text-gray-500">No holdings yet</p>
+        </div>
       );
-      setSearchResults(mockResults);
-    } else {
-      setSearchResults([]);
-    }
+
+    const getRiskColor = (risk) => {
+      switch (risk?.toLowerCase()) {
+        case "low":
+          return "text-green-600";
+        case "medium":
+          return "text-yellow-600";
+        case "high":
+          return "text-red-600";
+        default:
+          return "text-gray-600";
+      }
+    };
+
+    return (
+      <div className="p-4 bg-gray-50 rounded-lg shadow">
+        <h3 className="text-lg font-medium mb-4">My Holdings</h3>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead>
+              <tr>
+                {["Symbol", "Qty", "Avg Price", "Current Price", "P&L", "Risk", "Exchange", "Action"].map((h) => (
+                  <th key={h} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {holdings.map((h, i) => (
+                <tr key={i}>
+                  <td className="px-4 py-2 text-black">{h.symbol}</td>
+                  <td className="px-4 py-2 text-black">{h.quantity}</td>
+                  <td className="px-4 py-2 text-black">₹{h.average_price.toFixed(2)}</td>
+                  <td className="px-4 py-2 text-black">₹{h.current_price.toFixed(2)}</td>
+                  <td className={`px-4 py-2 ${h.profit_loss >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    ₹{h.profit_loss.toFixed(2)}
+                  </td>
+                  <td className={`px-4 py-2 font-semibold ${getRiskColor(h.risk_level)}`}>{h.risk_level}</td>
+                  <td className="px-4 py-2 text-blue-600 font-medium">{h.exchange}</td>
+                  <td className="px-4 py-2 space-x-2">
+                    <button
+                      onClick={() => placeOrder(h.symbol, "BUY", h.quantity, h.exchange)}
+                      className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                      Buy More
+                    </button>
+                    <button
+                      onClick={() => placeOrder(h.symbol, "SELL", h.quantity, h.exchange)}
+                      className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                      Sell
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
   };
 
-  const isInWatchlist = (symbol) => {
-    return watchlist.some((item) => item.symbol === symbol);
-  };
-
+  // --- Render Main ---
   return (
-    <div className="watchlist-container bg-gray-800 rounded-lg p-4 mb-4">
-      <h3 className="text-lg font-semibold text-white mb-3">📈 Watchlist</h3>
+    <div className="p-6 bg-white shadow-lg rounded-xl">
+      <Celebration trigger={celebrationMessage} />
 
-      {/* Search Bar */}
-      <div className="relative mb-3">
+      {/* Search */}
+      <div className="mb-6 flex gap-3">
         <input
           type="text"
-          placeholder="Search stocks..."
-          value={searchQuery}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="w-full p-2 rounded bg-gray-700 text-white border border-gray-600 focus:border-blue-500 focus:outline-none"
+          value={symbol}
+          onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+          placeholder="Enter symbol (e.g., TATAMOTORS.NS, RELIANCE.NS)"
+          className="flex-1 px-4 py-2 border rounded-lg text-black shadow-sm focus:ring focus:ring-blue-300"
         />
-
-        {searchResults.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-gray-700 rounded shadow-lg max-h-48 overflow-y-auto">
-            {searchResults.map((symbol) => (
-              <div
-                key={symbol}
-                className="flex justify-between items-center p-2 hover:bg-gray-600"
-              >
-                <span
-                  className="text-white cursor-pointer flex-1"
-                  onClick={() => onSymbolSelect(symbol)}
-                >
-                  {symbol}
-                </span>
-                <button
-                  onClick={() => handleAddToWatchlist(symbol)}
-                  disabled={isInWatchlist(symbol)}
-                  className={`ml-2 px-2 py-1 rounded text-xs ${
-                    isInWatchlist(symbol)
-                      ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                      : "bg-green-600 text-white hover:bg-green-700"
-                  }`}
-                >
-                  {isInWatchlist(symbol) ? "Added" : "Add"}
-                </button>
-              </div>
-            ))}
-          </div>
+        <button
+          onClick={analyzeStock}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 disabled:opacity-50"
+        >
+          {loading ? "Loading..." : "Analyze Stock"}
+        </button>
+        
+        {/* Watchlist Button */}
+        {stockData && (
+          <button
+            onClick={isInWatchlist ? handleRemoveFromWatchlist : handleAddToWatchlist}
+            className={`px-4 py-2 rounded-lg shadow ${
+              isInWatchlist 
+                ? "bg-red-600 text-white hover:bg-red-700" 
+                : "bg-green-600 text-white hover:bg-green-700"
+            }`}
+          >
+            {isInWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+          </button>
         )}
       </div>
 
-      {/* Recently Viewed */}
-      {recentStocks.length > 0 && (
-        <div className="mb-4">
-          <div className="flex items-center text-gray-400 text-sm mb-2">
-            <span className="mr-2">🕒</span>
-            Recently Viewed
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {recentStocks.map((symbol, index) => (
-              <div
-                key={index}
-                className="flex items-center bg-gray-700 rounded px-2 py-1"
-              >
-                <span
-                  className="text-white text-sm cursor-pointer hover:text-blue-300 mr-2"
-                  onClick={() => onSymbolSelect(symbol)}
-                >
-                  {symbol}
-                </span>
-                <button
-                  onClick={() => handleAddToWatchlist(symbol)}
-                  className="text-xs text-green-400 hover:text-green-300"
-                >
-                  +
-                </button>
-              </div>
-            ))}
-          </div>
+      {/* ✅ Recent Search History */}
+      {history.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {history.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => setSymbol(s)}
+              className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full shadow hover:bg-gray-200"
+            >
+              <span>🕒</span> {s}
+            </button>
+          ))}
         </div>
       )}
 
-      {/* Watchlist Items */}
-      <div className="watchlist-items">
-        {watchlist.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-4">
-            No stocks in watchlist. Search and add stocks above.
-          </p>
-        ) : (
-          watchlist.map((item) => (
-            <div
-              key={item.symbol}
-              className="flex justify-between items-center p-2 hover:bg-gray-700 rounded"
+      {/* Tabs */}
+      {stockData && (
+        <div className="flex border-b border-gray-200 mb-6">
+          {["chart", "holdings"].map((tab) => (
+            <button
+              key={tab}
+              className={`px-4 py-2 font-medium ${activeTab === tab ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"}`}
+              onClick={() => {
+                setActiveTab(tab);
+                if (tab === "holdings") fetchHoldings();
+              }}
             >
-              <div
-                className="flex-1 cursor-pointer text-white hover:text-blue-300"
-                onClick={() => onSymbolSelect(item.symbol)}
-              >
-                {item.symbol}
-              </div>
-              <button
-                onClick={() => handleRemoveFromWatchlist(item.symbol)}
-                className="text-red-400 hover:text-red-300 ml-2"
-              >
-                ×
-              </button>
-            </div>
-          ))
-        )}
-      </div>
+              {tab === "chart" ? "Chart" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Content */}
+      {error && <div className="p-3 mb-4 text-red-700 bg-red-100 border border-red-300 rounded-lg">{error}</div>}
+
+      {activeTab === "chart" && stockData && (
+        <>
+          <div className="p-4 bg-gray-50 rounded-lg shadow mb-6">
+            <CandlestickChart data={stockData.history} symbol={symbol} />
+          </div>
+          <div className="p-4 bg-gray-50 rounded-lg text-black shadow space-y-1">
+            <p><strong>Company:</strong> {stockData.name}</p>
+            <p><strong>Currency:</strong> {stockData.currency}</p>
+            <p><strong>Last Updated:</strong> {new Date(stockData.last_updated).toLocaleString()}</p>
+            <p><strong>Watchlist Status:</strong> {isInWatchlist ? "✅ In Watchlist" : "❌ Not in Watchlist"}</p>
+          </div>
+        </>
+      )}
+
+      {activeTab === "holdings" && <HoldingsList />}
     </div>
   );
 };
 
-export default Watchlist;
+export default SingleStock;

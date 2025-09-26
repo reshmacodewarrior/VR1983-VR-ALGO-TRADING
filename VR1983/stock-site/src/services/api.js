@@ -99,54 +99,107 @@ export const fetchSignals = async () => {
     throw error;
   }
 };
-export const getWatchlist = async (userId) => {
+
+// In services/api.js
+
+export const getWatchlist = async () => {
   try {
-    const response = await fetch(`/api/watchlist/${userId}`);
+    const response = await fetch(`${API_BASE_URL}/api/watchlist/`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+    if (!response.ok) throw new Error("Failed to fetch watchlist");
     return await response.json();
   } catch (error) {
-    console.error('Error fetching watchlist:', error);
-    return { watchlist: [] };
+    console.error("Error fetching watchlist:", error);
+    return [];
   }
 };
 
-export const addToWatchlist = async (userId, symbol) => {
+export const addToWatchlist = async (symbol, exchange = "NSE") => {
   try {
-    const response = await fetch(`/api/watchlist/${userId}/add/${symbol}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch(`${API_BASE_URL}/api/watchlist/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+      body: JSON.stringify({ symbol, exchange }), // Add exchange field
     });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || "Failed to add to watchlist");
+    }
     return await response.json();
   } catch (error) {
-    console.error('Error adding to watchlist:', error);
+    console.error("Error adding to watchlist:", error);
     throw error;
   }
 };
 
-export const removeFromWatchlist = async (userId, symbol) => {
+export const removeFromWatchlist = async (symbol) => {
   try {
-    const response = await fetch(`/api/watchlist/${userId}/remove/${symbol}`, {
-      method: 'DELETE',
+    const response = await fetch(`${API_BASE_URL}/api/watchlist/${symbol}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
     });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || "Failed to remove from watchlist");
+    }
     return await response.json();
   } catch (error) {
-    console.error('Error removing from watchlist:', error);
+    console.error("Error removing from watchlist:", error);
     throw error;
   }
 };
 
-export default api;
+// services/api.js
+const BASE_URL = "http://192.168.1.58:8000";
 
-// export const fetchProfileData = () => {
-//   fetch(`${API_BASE_URL}/api/user/profile`, {
-//     headers: {
-//       Authorization: `Bearer ${localStorage.getItem("token")}`,
-//     },
-//   })
-//     .then((res) => res.json())
-//     .then((data) => {
-//       console.log(data);
-//       // setProfile(data);
-//       // setEditedProfile(data);
-//     })
-//     .catch((err) => console.error("Error fetching profile:", err));
-// };
+export const watchlistAPI = {
+  // Get user's watchlist
+  getWatchlist: async () => {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${BASE_URL}/api/watchlist`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) throw new Error("Failed to fetch watchlist");
+    return response.json();
+  },
+
+  // Add symbol to watchlist
+  addToWatchlist: async (symbol) => {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${BASE_URL}/api/watchlist`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ symbol }),
+    });
+    if (!response.ok) throw new Error("Failed to add to watchlist");
+    return response.json();
+  },
+
+  // Remove symbol from watchlist
+  removeFromWatchlist: async (symbol) => {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${BASE_URL}/api/watchlist/${symbol}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) throw new Error("Failed to remove from watchlist");
+    return response.json();
+  },
+};

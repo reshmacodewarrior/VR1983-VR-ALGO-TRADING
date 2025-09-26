@@ -222,7 +222,7 @@ const OrderViewPanel = ({ orderData = [], loading, error, onRefresh }) => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Quantity</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">P&amp;L</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Risk Level</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Timestamp</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Time stamp</th>
                 </tr>
               </thead>
 

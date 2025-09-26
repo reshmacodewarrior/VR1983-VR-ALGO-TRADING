@@ -1,15 +1,19 @@
 import React, { useState, useRef, useEffect } from "react";
 import logo from "../asset/vrlogo.png";
 import userAvatar from "../asset/user-img.jpg";
-import { User, LogOut, Settings, ChevronDown, BarChart3, Bell } from "lucide-react";
+import { User, LogOut, Settings, ChevronDown, BarChart3, Bell, Wallet } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 export default function TopNavbar() {
   const [open, setOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [holdingsOpen, setHoldingsOpen] = useState(false);
+  const [holdings, setHoldings] = useState([]);
+  const [holdingsLoading, setHoldingsLoading] = useState(false);
   const { setAuth } = useAuth();
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  
   const user = JSON.parse(localStorage.getItem("user")) || {
     username: "Guest",
     email: "guest@example.com",
@@ -17,10 +21,9 @@ export default function TopNavbar() {
 
   const dropdownRef = useRef(null);
   const notificationsRef = useRef(null);
+  const holdingsRef = useRef(null);
 
-  const handleProfile = () => {
-    navigate('/profile')
-  }
+  const BASE_URL = process.env.REACT_APP_API_URL || "http://192.168.1.58:8000";
 
   // Mock notifications data
   const notifications = [
@@ -31,6 +34,34 @@ export default function TopNavbar() {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  // Fetch holdings data
+  const fetchHoldings = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      setHoldingsLoading(true);
+      const res = await fetch(`${BASE_URL}/api/holding-view`, {
+        method: "GET",
+        headers: { 
+          Authorization: `Bearer ${token}`, 
+          "Content-Type": "application/json" 
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setHoldings(data);
+      } else {
+        console.error("Holdings API error:", res.status);
+      }
+    } catch (err) {
+      console.error("Error fetching holdings:", err);
+    } finally {
+      setHoldingsLoading(false);
+    }
+  };
+
   // Close dropdowns if clicked outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -40,6 +71,9 @@ export default function TopNavbar() {
       if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
         setNotificationsOpen(false);
       }
+      if (holdingsRef.current && !holdingsRef.current.contains(event.target)) {
+        setHoldingsOpen(false);
+      }
     };
     
     document.addEventListener("mousedown", handleClickOutside);
@@ -48,10 +82,121 @@ export default function TopNavbar() {
     };
   }, []);
 
+  const handleProfile = () => {
+    navigate('/profile');
+  };
+
+  const handleHoldingsClick = () => {
+    if (!holdingsOpen) {
+      fetchHoldings();
+    }
+    setHoldingsOpen(!holdingsOpen);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("token");
     setAuth(false);
     window.location.reload();
+  };
+
+  // Holdings List Component
+  const HoldingsDropdown = () => {
+    if (!holdingsOpen) return null;
+
+    const getRiskColor = (risk) => {
+      switch (risk?.toLowerCase()) {
+        case "low": return "text-green-600";
+        case "medium": return "text-yellow-600";
+        case "high": return "text-red-600";
+        default: return "text-gray-600";
+      }
+    };
+
+    const totalProfitLoss = holdings.reduce((sum, h) => sum + (h.profit_loss || 0), 0);
+    const totalValue = holdings.reduce((sum, h) => sum + ((h.current_price || 0) * (h.quantity || 0)), 0);
+
+    return (
+      <div className="absolute right-0 top-full mt-2 w-96 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden z-50 max-h-96 overflow-y-auto">
+        <div className="p-4 bg-gradient-to-r from-blue-900 to-purple-900 text-white">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-lg flex items-center gap-2">
+              <Wallet size={18} />
+              My Holdings
+            </h3>
+            <div className="text-right">
+              <p className="text-sm">Total P&L: 
+                <span className={totalProfitLoss >= 0 ? "text-green-400 ml-1" : "text-red-400 ml-1"}>
+                  ₹{totalProfitLoss.toFixed(2)}
+                </span>
+              </p>
+              <p className="text-xs text-blue-200">Value: ₹{totalValue.toFixed(2)}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="p-3 max-h-64 overflow-y-auto">
+          {holdingsLoading ? (
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-gray-500 text-sm mt-2">Loading holdings...</p>
+            </div>
+          ) : holdings.length === 0 ? (
+            <div className="text-center py-4">
+              <Wallet size={32} className="mx-auto text-gray-400 mb-2" />
+              <p className="text-gray-500">No holdings yet</p>
+              <p className="text-gray-400 text-sm">Start trading to see your holdings here</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {holdings.map((holding, index) => (
+                <div key={index} className="p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-semibold text-gray-800">{holding.symbol}</p>
+                      <p className="text-xs text-gray-500">{holding.exchange}</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(holding.risk_level)} bg-opacity-10`}>
+                      {holding.risk_level || 'N/A'}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-gray-600">Qty: </span>
+                      <span className="font-medium">{holding.quantity}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Avg: </span>
+                      <span className="font-medium">₹{holding.average_price?.toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Current: </span>
+                      <span className="font-medium">₹{holding.current_price?.toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">P&L: </span>
+                      <span className={holding.profit_loss >= 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                        ₹{holding.profit_loss?.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        <div className="border-t border-gray-200 p-3 bg-gray-50">
+          <button 
+            onClick={() => navigate('/dashboard')} // Adjust route as needed
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+          >
+            View Full Portfolio
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -75,19 +220,65 @@ export default function TopNavbar() {
         </div>
       </div>
 
-      {/* Center Navigation (optional) */}
-      {/* <div className="hidden lg:flex items-center space-x-6">
-        <a href="#" className="text-blue-200 hover:text-white transition-colors flex items-center gap-1">
-          <BarChart3 size={16} />
-          <span>Dashboard</span>
-        </a>
-        <a href="#" className="text-blue-200 hover:text-white transition-colors">Strategies</a>
-        <a href="#" className="text-blue-200 hover:text-white transition-colors">Market</a>
-        <a href="#" className="text-blue-200 hover:text-white transition-colors">Analytics</a>
-      </div> */}
-
       {/* Right User Section */}
       <div className="flex items-center gap-4">
+
+        {/* My Holdings Button */}
+        <div className="relative" ref={holdingsRef}>
+          <button
+            onClick={handleHoldingsClick}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-800 hover:bg-blue-700 rounded-lg transition-colors relative group"
+          >
+            <Wallet size={18} />
+            <span className="hidden sm:block">My Holdings</span>
+            {holdings.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                {holdings.length}
+              </span>
+            )}
+          </button>
+          
+          <HoldingsDropdown />
+        </div>
+
+        {/* Notifications Bell */}
+        <div className="relative" ref={notificationsRef}>
+          <button
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            className="p-2 hover:bg-blue-800 rounded-lg transition-colors relative"
+          >
+            <Bell size={20} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+
+          {notificationsOpen && (
+            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
+              <div className="p-4 bg-gradient-to-r from-blue-900 to-purple-900 text-white">
+                <h3 className="font-semibold">Notifications</h3>
+                <p className="text-sm text-blue-200">{unreadCount} unread</p>
+              </div>
+              
+              <div className="max-h-64 overflow-y-auto">
+                {notifications.map((notification) => (
+                  <div key={notification.id} className={`p-3 border-b border-gray-100 ${!notification.read ? 'bg-blue-50' : ''}`}>
+                    <p className="text-sm text-gray-800">{notification.text}</p>
+                    <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="p-3 border-t border-gray-200">
+                <button className="w-full text-center text-sm text-blue-600 hover:text-blue-800">
+                  Mark all as read
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* User Profile */}
         <div className="relative flex items-center gap-2" ref={dropdownRef}>
