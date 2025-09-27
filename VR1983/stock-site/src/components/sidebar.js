@@ -47,6 +47,7 @@ export default function SideNavbar() {
       path: "/broker",
       icon: <SiIobroker className="text-lg" />,
     },
+    
     // { name: "AI Strategies", path: "/strategies", icon: <FaRobot className="text-lg" /> },
     // { name: "Wallet", path: "/wallet", icon: <FaWallet className="text-lg" /> },
     { name: "Profile", path: "/profile", icon: <FaUser className="text-lg" /> },

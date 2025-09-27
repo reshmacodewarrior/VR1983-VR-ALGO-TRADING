@@ -18,6 +18,7 @@ export default function Dashboard() {
           <Outlet /> {/* 🔹 Nested routes like /home, /intraday, etc. */}
         </div>
       </div>
+      
     </div>
   );
 }

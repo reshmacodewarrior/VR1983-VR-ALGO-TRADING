@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import CandlestickChart from "./CandlestickChart";
-import Celebration from "./Celebration";
 import { stockAPI, watchlistAPI } from "../services/api";
 
 const SingleStock = ({ period, interval }) => {
@@ -11,7 +10,6 @@ const SingleStock = ({ period, interval }) => {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("chart");
   const [holdings, setHoldings] = useState([]);
-  const [celebrationMessage, setCelebrationMessage] = useState("");
   const [history, setHistory] = useState([]);
   const [watchlist, setWatchlist] = useState([]);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
@@ -57,7 +55,6 @@ const SingleStock = ({ period, interval }) => {
 
       await watchlistAPI.addToWatchlist(symbol);
       await fetchWatchlist();
-      setCelebrationMessage(`${symbol} added to watchlist!`);
     } catch (err) {
       console.error("Error adding to watchlist:", err);
       alert("Failed to add to watchlist");
@@ -72,7 +69,6 @@ const SingleStock = ({ period, interval }) => {
 
       await watchlistAPI.removeFromWatchlist(symbol);
       await fetchWatchlist();
-      setCelebrationMessage(`${symbol} removed from watchlist!`);
     } catch (err) {
       console.error("Error removing from watchlist:", err);
       alert("Failed to remove from watchlist");
@@ -159,7 +155,6 @@ const SingleStock = ({ period, interval }) => {
 
       if (res.ok) {
         const result = await res.json();
-        setCelebrationMessage(`${type} order placed! Order ID: ${result.order_id}`);
         await fetchHoldings();
       } else {
         const errorData = await res.json().catch(() => ({}));
@@ -241,13 +236,11 @@ const SingleStock = ({ period, interval }) => {
     );
   };
 
-  // Tabs configuration - REMOVED WATCHLIST TAB
-  const tabs = ["chart", "holdings"];
+  // Tabs configuration
+  const tabs = ["chart"];
 
   return (
     <div className="p-6 bg-white shadow-lg rounded-xl">
-      <Celebration trigger={celebrationMessage} />
-
       {/* Search Section with Watchlist Button */}
       <div className="mb-6 flex gap-3 items-center">
         <input
@@ -265,7 +258,7 @@ const SingleStock = ({ period, interval }) => {
           {loading ? "Loading..." : "Analyze Stock"}
         </button>
         
-        {/* Watchlist Toggle Button - Only show if user is logged in AND has analyzed at least one stock */}
+        {/* Watchlist Toggle Button */}
         {localStorage.getItem("token") && stockData && (
           <button
             onClick={isInWatchlist ? removeFromWatchlist : addToWatchlist}
@@ -277,7 +270,7 @@ const SingleStock = ({ period, interval }) => {
           >
             {isInWatchlist ? (
               <>
-                <span>🗑️</span> Remove from Watchlist
+                <span></span> Remove from Watchlist
               </>
             ) : (
               <>
@@ -288,11 +281,11 @@ const SingleStock = ({ period, interval }) => {
         )}
       </div>
 
-      {/* Recent Search History with Alarm Clock Icon */}
+      {/* Recent Search History */}
       {history.length > 0 && (
         <div className="mt-2 mb-4">
           <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <span>⏰</span> Recent Searches (Max: 6)
+            <span>⏰</span> Recent Searches
           </h4>
           <div className="flex flex-wrap gap-2">
             {history.map((s, i) => (
@@ -308,7 +301,7 @@ const SingleStock = ({ period, interval }) => {
         </div>
       )}
 
-      {/* Watchlist Display - Only show if user is logged in AND has watchlist items */}
+      {/* Watchlist Display */}
       {localStorage.getItem("token") && watchlist.length > 0 && (
         <div className="mt-2 mb-4">
           <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
@@ -331,7 +324,7 @@ const SingleStock = ({ period, interval }) => {
                   className="text-red-500 hover:text-red-700 ml-1"
                   title="Remove from watchlist"
                 >
-                  🗑️
+                  ❌
                 </button>
               </div>
             ))}
@@ -339,7 +332,7 @@ const SingleStock = ({ period, interval }) => {
         </div>
       )}
 
-      {/* Tabs - Only Chart and Holdings */}
+      {/* Tabs */}
       {stockData && (
         <div className="flex border-b border-gray-200 mb-6">
           {tabs.map((tab) => (

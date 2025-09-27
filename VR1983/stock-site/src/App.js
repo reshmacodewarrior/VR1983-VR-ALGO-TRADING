@@ -19,7 +19,7 @@ import BrokerAccountForm from "./pages/dash/SelectBroker";
 import Swing from "./pages/dash/swing";
 import LongTerm from "./pages/dash/longTerm";
 import { ProfileProvider } from "./context/ProfileContext";
-// import longTerm from "@/pages/dash/longTerm";
+import OrderViewPanel from "./components/OrderViewPanel"; // Add this import
 
 function PrivateRoute({ children }) {
   const { auth } = useAuth();
@@ -53,6 +53,7 @@ export default function App() {
               <Route path="swing" element={<Swing />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="broker" element={<BrokerAccountForm />} />
+              <Route path="orders" element={<OrderViewPanel />} /> {/* Add this line */}
             </Route>
 
             {/* Catch-all route (optional) */}

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import logo from "../asset/vrlogo.png";
 import userAvatar from "../asset/user-img.jpg";
-import { User, LogOut, Settings, ChevronDown, BarChart3, Bell, Wallet } from "lucide-react";
+import { User, LogOut, Settings, ChevronDown, Bell, Wallet, FileText } from "lucide-react"; // Added FileText icon
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -51,7 +51,17 @@ export default function TopNavbar() {
 
       if (res.ok) {
         const data = await res.json();
-        setHoldings(data);
+        // Ensure all fields have default values to avoid empty fields
+        const processedHoldings = data.map(holding => ({
+          symbol: holding.symbol || 'N/A',
+          exchange: holding.exchange || 'NSE',
+          quantity: holding.quantity || 0,
+          average_price: holding.average_price || 0,
+          current_price: holding.current_price || 0,
+          profit_loss: holding.profit_loss || 0,
+          risk_level: holding.risk_level || 'Medium'
+        }));
+        setHoldings(processedHoldings);
       } else {
         console.error("Holdings API error:", res.status);
       }
@@ -86,11 +96,20 @@ export default function TopNavbar() {
     navigate('/profile');
   };
 
+  const handleOrders = () => {
+    navigate('/orders');
+  };
+
   const handleHoldingsClick = () => {
     if (!holdingsOpen) {
       fetchHoldings();
     }
     setHoldingsOpen(!holdingsOpen);
+  };
+
+  const handleViewPortfolio = () => {
+    setHoldingsOpen(false);
+    navigate('/profile');
   };
 
   const handleLogout = () => {
@@ -100,21 +119,22 @@ export default function TopNavbar() {
     window.location.reload();
   };
 
-  // Holdings List Component
+  // Holdings List Component (keep your existing HoldingsDropdown component)
   const HoldingsDropdown = () => {
+    // ... (keep your existing HoldingsDropdown implementation)
     if (!holdingsOpen) return null;
 
     const getRiskColor = (risk) => {
       switch (risk?.toLowerCase()) {
-        case "low": return "text-green-600";
-        case "medium": return "text-yellow-600";
-        case "high": return "text-red-600";
-        default: return "text-gray-600";
+        case 'low': return 'bg-green-100 text-green-800';
+        case 'medium': return 'bg-yellow-100 text-yellow-800';
+        case 'high': return 'bg-red-100 text-red-800';
+        default: return 'bg-gray-100 text-gray-800';
       }
     };
 
     const totalProfitLoss = holdings.reduce((sum, h) => sum + (h.profit_loss || 0), 0);
-    const totalValue = holdings.reduce((sum, h) => sum + ((h.current_price || 0) * (h.quantity || 0)), 0);
+    const totalCurrentValue = holdings.reduce((sum, h) => sum + ((h.current_price || 0) * (h.quantity || 0)), 0);
 
     return (
       <div className="absolute right-0 top-full mt-2 w-96 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden z-50 max-h-96 overflow-y-auto">
@@ -130,7 +150,7 @@ export default function TopNavbar() {
                   ₹{totalProfitLoss.toFixed(2)}
                 </span>
               </p>
-              <p className="text-xs text-blue-200">Value: ₹{totalValue.toFixed(2)}</p>
+              <p className="text-xs text-blue-200">Value: ₹{totalCurrentValue.toFixed(2)}</p>
             </div>
           </div>
         </div>
@@ -150,34 +170,34 @@ export default function TopNavbar() {
           ) : (
             <div className="space-y-2">
               {holdings.map((holding, index) => (
-                <div key={index} className="p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                <div key={index} className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <p className="font-semibold text-gray-800">{holding.symbol}</p>
-                      <p className="text-xs text-gray-500">{holding.exchange}</p>
+                      <p className="text-xs text-gray-600">{holding.exchange}</p>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(holding.risk_level)} bg-opacity-10`}>
-                      {holding.risk_level || 'N/A'}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(holding.risk_level)}`}>
+                      {holding.risk_level}
                     </span>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
-                      <span className="text-gray-600">Qty: </span>
-                      <span className="font-medium">{holding.quantity}</span>
+                      <span className="text-gray-700 font-medium">Qty: </span>
+                      <span className="text-gray-900">{holding.quantity}</span>
                     </div>
                     <div>
-                      <span className="text-gray-600">Avg: </span>
-                      <span className="font-medium">₹{holding.average_price?.toFixed(2)}</span>
+                      <span className="text-gray-700 font-medium">Avg: </span>
+                      <span className="text-gray-900">₹{holding.average_price.toFixed(2)}</span>
                     </div>
                     <div>
-                      <span className="text-gray-600">Current: </span>
-                      <span className="font-medium">₹{holding.current_price?.toFixed(2)}</span>
+                      <span className="text-gray-700 font-medium">Current: </span>
+                      <span className="text-gray-900">₹{holding.current_price.toFixed(2)}</span>
                     </div>
                     <div>
-                      <span className="text-gray-600">P&L: </span>
-                      <span className={holding.profit_loss >= 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                        ₹{holding.profit_loss?.toFixed(2)}
+                      <span className="text-gray-700 font-medium">P&L: </span>
+                      <span className={holding.profit_loss >= 0 ? "text-green-600 font-bold" : "text-red-600 font-bold"}>
+                        ₹{holding.profit_loss.toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -189,7 +209,7 @@ export default function TopNavbar() {
         
         <div className="border-t border-gray-200 p-3 bg-gray-50">
           <button 
-            onClick={() => navigate('/dashboard')} // Adjust route as needed
+            onClick={handleViewPortfolio}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
           >
             View Full Portfolio
@@ -222,6 +242,15 @@ export default function TopNavbar() {
 
       {/* Right User Section */}
       <div className="flex items-center gap-4">
+
+        {/* Orders Button */}
+        <button
+          onClick={handleOrders}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-800 hover:bg-blue-700 rounded-lg transition-colors"
+        >
+          <FileText size={18} />
+          <span className="hidden sm:block">My Orders</span>
+        </button>
 
         {/* My Holdings Button */}
         <div className="relative" ref={holdingsRef}>
