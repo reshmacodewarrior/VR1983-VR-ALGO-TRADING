@@ -58,11 +58,5 @@ async def get_user_by_email(email: str) -> Optional[UserInDB]:
         return UserInDB(**user)
     return None
 
-async def get_user_by_email(email: str):
-    user = await users_collection.find_one({"email": email})
-    if user:
-        # Create the UserInDB object, including the `id` field from `_id`
-        user_data = {**user, "id": str(user["_id"])} # Add this line
-        return UserInDB(**user_data)                 # Change this line
-    return None
+
 

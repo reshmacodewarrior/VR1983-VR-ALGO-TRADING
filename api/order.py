@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from bson import ObjectId
 import yfinance as yf
 import random
+import logging
+from datetime import datetime, timezone, timedelta
 
 from database.collections import users_collection, trades_collection, holdings_collection, balance_collection
 from schemas.order import OrderRequest, OrderResponse, Trade, Holding
@@ -10,6 +12,9 @@ from .user import get_current_user
 from schemas.user import UserInDB
 
 router = APIRouter(prefix="/api", tags=["Trading"])
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Initialize user with virtual balance
 async def init_virtual_balance(user_id: str):
@@ -21,6 +26,42 @@ async def init_virtual_balance(user_id: str):
     })
     return initial_balance
 
+def get_current_market_price(symbol: str):
+    """Get current market price from yfinance with proper error handling"""
+    try:
+        # Add .NS for NSE symbols if not already present
+        if not symbol.endswith('.NS'):
+            symbol += '.NS'
+            
+        ticker = yf.Ticker(symbol)
+        
+        # Try to get regular market price first
+        info = ticker.info
+        current_price = info.get('regularMarketPrice')
+        
+        # If not available, try currentPrice
+        if current_price is None:
+            current_price = info.get('currentPrice')
+            
+        # If still not available, get latest historical data
+        if current_price is None or current_price == 0:
+            hist = ticker.history(period="1d", interval="1m")
+            if not hist.empty:
+                current_price = hist['Close'].iloc[-1]
+        
+        # If all else fails, raise an exception
+        if current_price is None or current_price == 0:
+            raise ValueError(f"Could not fetch price for {symbol}")
+            
+        return round(current_price, 2)
+        
+    except Exception as e:
+        logger.error(f"Error fetching price for {symbol}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Could not fetch current market price for {symbol}. Please try again."
+        )
+
 @router.post("/order", response_model=OrderResponse)
 async def place_order(
     order: OrderRequest,
@@ -29,21 +70,17 @@ async def place_order(
     """Place an order (paper trading)"""
     user_id = current_user.id
     
-    # 1. Get current market price from yfinance
+    # 1. Get current market price
     try:
-        ticker = yf.Ticker(f"{order.symbol}.NS")
-        info = ticker.info
-        current_price = info.get('regularMarketPrice', info.get('currentPrice', 0))
-        
-        if not current_price or current_price == 0:
-            hist = ticker.history(period="1d", interval="1m")
-            if not hist.empty:
-                current_price = hist['Close'].iloc[-1]
-            else:
-                # Fallback to random price if yfinance fails (for development)
-                current_price = random.uniform(100, 5000)
+        executed_price = get_current_market_price(order.symbol)
+    except HTTPException:
+        raise
     except Exception as e:
-        current_price = random.uniform(100, 5000)  # Fallback
+        logger.error(f"Unexpected error fetching price: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error fetching market price for {order.symbol}"
+        )
 
     # 2. Get user's virtual balance
     balance_data = await balance_collection.find_one({"user_id": user_id})
@@ -53,11 +90,10 @@ async def place_order(
         cash_balance = balance_data["cash_balance"]
 
     # 3. Calculate order value
-    executed_price = current_price
     order_value = executed_price * order.quantity
 
     # 4. Generate a realistic order ID
-    order_id = f"{datetime.now().strftime('%y%m%d')}{random.randint(100000, 999999)}"
+    order_id = f"{datetime.utcnow().strftime('%y%m%d')}{random.randint(100000, 999999)}"
 
     # 5. Execute BUY order
     if order.transaction_type.upper() == "BUY":
@@ -83,7 +119,7 @@ async def place_order(
                 {"user_id": user_id, "symbol": order.symbol},
                 {"$set": {
                     "quantity": new_quantity,
-                    "average_price": new_avg_price,
+                    "average_price": round(new_avg_price, 2),
                     "last_updated": datetime.utcnow()
                 }}
             )
@@ -169,10 +205,9 @@ async def get_holdings(current_user: UserInDB = Depends(get_current_user)):
     result = []
     for holding in holdings:
         try:
-            ticker = yf.Ticker(f"{holding['symbol']}.NS")
-            info = ticker.info
-            last_price = info.get('regularMarketPrice', info.get('currentPrice', holding['average_price']))
+            last_price = get_current_market_price(holding['symbol'])
         except:
+            # If we can't get current price, use the average price
             last_price = holding['average_price']
         
         pnl = (last_price - holding['average_price']) * holding['quantity']
@@ -206,3 +241,205 @@ async def get_balance(current_user: UserInDB = Depends(get_current_user)):
         "total_holdings_value": total_holdings_value,
         "total_portfolio_value": total_portfolio_value
     }
+
+# --- NEW CODE FOR ORDER VIEW TABLE PANEL ---
+from typing import List
+from pydantic import BaseModel
+
+# 1. Define a new Pydantic model for the Order View response
+class OrderViewItem(BaseModel):
+    no: int  # Sequential number
+    symbol: str
+    order_price: float  # from trades_collection 'average_price'
+    current_price: float
+    profit_loss: float  # (current_price - order_price) * quantity
+    quantity: int
+    risk_level: str  # The new field: e.g., "Low", "Medium", "High"
+    # Optional: Add other fields you might need like 'order_id', 'transaction_type'
+
+# 2. Create a function to calculate risk level (simple logic for now)
+def calculate_risk_level(profit_loss: float, investment_value: float) -> str:
+    """
+    A simple function to determine risk level based on P&L.
+    You can make this much more sophisticated later (using ATR, volatility, etc.).
+    """
+    if investment_value == 0:
+        return "Medium"
+    
+    # Calculate P&L as a percentage of the initial investment
+    pl_percentage = (profit_loss / investment_value) * 100
+
+    if abs(pl_percentage) > 10:
+        return "High"
+    elif abs(pl_percentage) > 5:
+        return "Medium"
+    else:
+        return "Low"
+
+# 3. The new API endpoint for the Order View Table
+@router.get("/order-view", response_model=List[OrderViewItem])
+async def get_order_view_table(current_user: UserInDB = Depends(get_current_user)):
+    """
+    Get a consolidated view of orders with current price, P/L, and risk level.
+    This is specifically for the new UI panel.
+    """
+    try:
+        # Get the user's recent orders (trades)
+        trades = await trades_collection.find({"user_id": current_user.id}).sort("order_timestamp", -1).to_list(50)
+        
+        order_view_list = []
+        
+        for index, trade in enumerate(trades):
+            symbol = trade["symbol"]
+            
+            # Get the current market price for this symbol
+            try:
+                current_price = get_current_market_price(symbol)
+            except Exception as e:
+                logger.error(f"Could not fetch current price for {symbol}: {e}")
+                # If price fetch fails, skip this trade from the list or use order price?
+                current_price = trade["average_price"]
+            
+            # Calculate Profit/Loss
+            # For BUY: P/L = (Current - Order) * Qty
+            # For SELL: P/L = (Order - Current) * Qty (or just negative of BUY)
+            order_value = trade["average_price"] * trade["quantity"]
+            if trade["transaction_type"].upper() == "BUY":
+                profit_loss = (current_price - trade["average_price"]) * trade["quantity"]
+            else:  # SELL
+                profit_loss = (trade["average_price"] - current_price) * trade["quantity"]
+            
+            # Calculate Risk Level
+            risk_level = calculate_risk_level(profit_loss, order_value)
+            
+            # Create the order view item
+            order_view_item = {
+                "no": index + 1,  # Sequential number
+                "symbol": symbol,
+                "order_price": trade["average_price"],
+                "current_price": current_price,
+                "profit_loss": profit_loss,
+                "quantity": trade["quantity"],
+                "risk_level": risk_level
+            }
+            
+            order_view_list.append(order_view_item)
+        
+        return order_view_list
+        
+    except Exception as e:
+        logger.error(f"Error in get_order_view_table: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch order view data"
+        )
+    
+from typing import List
+from pydantic import BaseModel
+
+class OrderViewPanelItem(BaseModel):
+    order_id: str
+    symbol: str
+    transaction_type: str
+    order_price: float
+    current_price: float
+    quantity: int
+    profit_loss: float
+    risk_level: str
+    timestamp: str  # ISO format timestamp
+
+
+@router.get("/order-view-panel", response_model=List[OrderViewPanelItem])
+async def get_order_view_panel(current_user: UserInDB = Depends(get_current_user)):
+    """
+    Returns the user's executed orders with full details for the Order View Panel.
+    """
+    trades = await trades_collection.find(
+        {"user_id": current_user.id}
+    ).sort("order_timestamp", -1).to_list(100)
+
+    result = []
+    for trade in trades:
+        symbol = trade["symbol"]
+
+        # Get current market price
+        try:
+            current_price = get_current_market_price(symbol)
+        except:
+            current_price = trade["average_price"]
+
+        # Calculate P&L
+        if trade["transaction_type"].upper() == "BUY":
+            profit_loss = (current_price - trade["average_price"]) * trade["quantity"]
+        else:  # SELL
+            profit_loss = (trade["average_price"] - current_price) * trade["quantity"]
+
+        # Risk Level
+        order_value = trade["average_price"] * trade["quantity"]
+        risk_level = calculate_risk_level(profit_loss, order_value)
+
+        result.append(OrderViewPanelItem(
+            order_id=trade["order_id"],
+            symbol=symbol,
+            transaction_type=trade["transaction_type"],
+            order_price=trade["average_price"],
+            current_price=current_price,
+            quantity=trade["quantity"],
+            profit_loss=round(profit_loss, 2),
+            risk_level=risk_level,
+            timestamp=trade["order_timestamp"].isoformat()
+        ))
+
+    return result
+
+class HoldingViewItem(BaseModel):
+    symbol: str
+    exchange: str
+    quantity: int
+    average_price: float
+    current_price: float
+    investment_value: float
+    current_value: float
+    profit_loss: float
+    risk_level: str
+
+
+
+@router.get("/holding-view", response_model=List[HoldingViewItem])
+async def get_holding_view(current_user: UserInDB = Depends(get_current_user)):
+    """
+    Returns the user's holdings with P&L, risk level, and pre-calculated values.
+    """
+    holdings = await holdings_collection.find(
+        {"user_id": current_user.id}
+    ).to_list(100)
+
+    result = []
+    for h in holdings:
+        try:
+            current_price = get_current_market_price(h["symbol"])
+        except Exception:
+            current_price = h["average_price"]
+
+        quantity = h["quantity"]
+        avg_price = h["average_price"]
+
+        # 🔹 Calculations (now on backend)
+        investment_value = avg_price * quantity
+        current_value = current_price * quantity
+        profit_loss = current_value - investment_value
+        risk_level = calculate_risk_level(profit_loss, investment_value)
+
+        result.append(HoldingViewItem(
+            symbol=h["symbol"],
+            exchange=h.get("exchange", "NSE"),
+            quantity=quantity,
+            average_price=avg_price,
+            current_price=current_price,
+            investment_value=round(investment_value, 2),
+            current_value=round(current_value, 2),
+            profit_loss=round(profit_loss, 2),
+            risk_level=risk_level,
+        ))
+
+    return result
