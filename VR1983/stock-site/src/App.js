@@ -7,19 +7,17 @@ import {
 } from "react-router-dom";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
-import Dashboard from "./pages/dash/dashboard";
+import Dashboard from "./pages/dash/Dashboard";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
-import ForgotPassword from "./pages/auth/forgotPassword";
-import HomeCarousel from "./pages/dash/home";
-import IntradayChart from "./pages/dash/intraday";
-import ProfilePage from "./pages/dash/profile";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import HomeCarousel from "./pages/dash/Home";
+import LiveMarket from "./pages/dash/Livemarket";
+import ProfilePage from "./pages/dash/Profile";
+import OrdersPage from "./pages/dash/OrdersPage"; 
 import BrokerAccountForm from "./pages/dash/SelectBroker";
-import Swing from "./pages/dash/swing";
-import LongTerm from "./pages/dash/longTerm";
 import { ProfileProvider } from "./context/ProfileContext";
-import OrderViewPanel from "./components/OrderViewPanel"; // Add this import
 
 function PrivateRoute({ children }) {
   const { auth } = useAuth();
@@ -48,12 +46,11 @@ export default function App() {
             >
               <Route index element={<Navigate to="home" replace />} />
               <Route path="home" element={<HomeCarousel />} />
-              <Route path="intraday" element={<IntradayChart />} />
-              <Route path="longterm" element={<LongTerm />} />
-              <Route path="swing" element={<Swing />} />
+              <Route path="livemarket" element={<LiveMarket />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="broker" element={<BrokerAccountForm />} />
-              <Route path="orders" element={<OrderViewPanel />} /> {/* Add this line */}
+              <Route path="orders" element={<OrdersPage />} /> {/* Add this route */}
+
             </Route>
 
             {/* Catch-all route (optional) */}

@@ -28,20 +28,11 @@ export default function SideNavbar() {
   const menuItems = [
     { name: "Home", path: "/home", icon: <FaHome className="text-lg" /> },
     {
-      name: "Intraday",
-      path: "/intraday",
+      name: "Live Market",
+      path: "/livemarket",
       icon: <FaChartLine className="text-lg" />,
     },
-    {
-      name: "Swing",
-      path: "/swing",
-      icon: <FaExchangeAlt className="text-lg" />,
-    },
-    {
-      name: "Longterm",
-      path: "/longterm",
-      icon: <FaClock className="text-lg" />,
-    },
+    
     {
       name: "Broker Account",
       path: "/broker",

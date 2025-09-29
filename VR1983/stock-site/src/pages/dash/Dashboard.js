@@ -1,6 +1,6 @@
 import React from "react";
-import SideNavbar from "../../components/sidebar";
-import Navbar from "../../components/navbar";
+import SideNavbar from "../../components/Sidebar";
+import Navbar from "../../components/Navbar";
 import { Outlet } from "react-router-dom";
 
 export default function Dashboard() {
@@ -15,7 +15,7 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <div className="flex-1 p-10 relative">
-          <Outlet /> {/* 🔹 Nested routes like /home, /intraday, etc. */}
+          <Outlet /> {/* 🔹 Nested routes like /home, /market, etc. */}
         </div>
       </div>
       

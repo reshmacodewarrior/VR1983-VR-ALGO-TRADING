@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Navigation from "../../components/Navigation";
 import SingleStock from "../../components/SingleStock";
-import BulkViewer from "../../components/BulkViewer";
-import IndianStocks from "../../components/IndianStocks";
 import SearchQueue from "../../components/SearchQueue";
 import Header from "../../components/Header";
 import { FaSync, FaRobot, FaChartLine, FaDatabase, FaSignOutAlt } from "react-icons/fa";
 import OrderViewPanel from "../../components/OrderViewPanel";
 
-function Intraday() {
+function LiveMarket() {
   const [currentView, setCurrentView] = useState("single");
   const [period, setPeriod] = useState("1mo");
   const [interval, setInterval] = useState("1d");
@@ -132,10 +130,7 @@ function Intraday() {
     switch (currentView) {
       case "single":
         return <SingleStock {...commonProps} />;
-      case "bulk":
-        return <BulkViewer {...commonProps} />;
-      case "indian":
-        return <IndianStocks {...commonProps} />;
+  
       case "queue":
         return <SearchQueue {...commonProps} />;
       default:
@@ -236,13 +231,7 @@ function Intraday() {
           {renderView()}
         </div>
         
-        {/* Order View Panel - Added below the main content */}
-        <OrderViewPanel 
-          orderData={orderViewData}
-          loading={orderViewLoading}
-          error={orderViewError}
-          onRefresh={fetchOrderViewData}
-        />
+       
       </main>
 
       {/* Market Status Bar */}
@@ -303,4 +292,4 @@ function Intraday() {
   );
 }
 
-export default Intraday;
+export default LiveMarket;

@@ -1,11 +1,14 @@
 import os
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.params import Body
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+from datetime import timedelta
+from config import settings
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pymongo.errors import DuplicateKeyError, OperationFailure
@@ -68,6 +71,7 @@ async def authenticate_user(email: str, password: str):
         logger.error(f"Authentication error for {email}: {e}")
         return False
 
+
 @router.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     try:
@@ -85,12 +89,25 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         if not verify_password(form_data.password, user["hashed_password"]):
             logger.warning(f"Failed login attempt for user: {form_data.username}")
             raise InvalidCredentialsError("Incorrect username/email or password")
-        
-        access_token = create_access_token(data={"sub": user["email"]})
-        
+
+        # ⏱ Access token: short (from .env, e.g. 30m)
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user["email"], "type": "access"},
+            expires_delta=access_token_expires
+        )
+
+        # 🔑 Refresh token: longer (e.g. 7 days)
+        refresh_token_expires = timedelta(days=7)
+        refresh_token = create_access_token(
+            data={"sub": user["email"], "type": "refresh"},
+            expires_delta=refresh_token_expires
+        )
+
         logger.info(f"Successful login for user: {user['email']}")
         return {
             "access_token": access_token,
+            "refresh_token": refresh_token,
             "token_type": "bearer",
             "user": {
                 "username": user["username"],   
@@ -153,115 +170,50 @@ async def verify_password(
         )
 
 @router.post("/refresh-token")
-async def refresh_token(current_user: UserInDB = Depends(get_current_user)):
+async def refresh_token(refresh_token: str = Body(..., embed=True)):
     """
-    Refresh the access token
+    Issue a new access token using a valid refresh token
     """
     try:
-        access_token = create_access_token(data={"sub": current_user.email})
-        
-        logger.info(f"Token refreshed for user: {current_user.email}")
+        payload = jwt.decode(
+            refresh_token, 
+            settings.SECRET_KEY, 
+            algorithms=[settings.ALGORITHM]
+        )
+
+        if payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type"
+            )
+
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token"
+            )
+
+        # ⏱ Issue new access token
+        new_access_token = create_access_token(
+            data={"sub": email, "type": "access"},
+            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+
+        logger.info(f"Access token refreshed for user: {email}")
         return {
-            "access_token": access_token,
+            "access_token": new_access_token,
             "token_type": "bearer"
         }
-        
+
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
     except Exception as e:
         logger.error(f"Error refreshing token: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to refresh token"
-        )
-
-@router.get("/profile")
-async def get_user_profile(current_user: UserInDB = Depends(get_current_user)):
-    try:
-        return {
-            "username": current_user.username,   
-            "firstname": current_user.firstname,
-            "lastname": current_user.lastname,
-            "email": current_user.email,
-            "brokers": current_user.brokers,
-            "mobile_no": current_user.mobile_no,
-            "created_at": current_user.created_at
-        }
-    except JWTError as e:
-        logger.warning(f"JWT error in profile endpoint: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token"
-        )
-    except Exception as e:
-        logger.error(f"Error fetching user profile: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch user profile"
-        )
-
-@router.post("/signup")
-async def signup(user: User):
-    try:
-        # Validate input further if needed
-        if len(user.password) < 8:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Password must be at least 8 characters long"
-            )
-        
-        existing_user = await users_collection.find_one({
-            "$or": [
-                {"email": user.email},
-                {"username": user.username}
-            ]
-        })
-        
-        if existing_user:
-            if existing_user.get("email") == user.email:
-                raise UserAlreadyExistsError("email", user.email)
-            else:
-                raise UserAlreadyExistsError("username", user.username)
-        
-        hashed_password = get_password_hash(user.password)
-        created_at = datetime.now().isoformat()
-        updated_at = datetime.now().isoformat()
-        
-        user_data = {
-            "username": user.username,  
-            "firstname": user.firstname,
-            "lastname": user.lastname,
-            "email": user.email,
-            "mobile_no": user.mobile_no,
-            "hashed_password": hashed_password,
-            "created_at": created_at,
-            "updated_at": updated_at
-        }
-        
-        result = await users_collection.insert_one(user_data)
-        
-        logger.info(f"New user created: {user.email}")
-        return {"message": "User created successfully", "user_id": str(result.inserted_id)}
-    
-    except UserAlreadyExistsError as e:
-        logger.warning(f"User creation failed - already exists: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except DuplicateKeyError as e:
-        logger.warning(f"Database duplicate key error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already exists"
-        )
-    except OperationFailure as e:
-        logger.error(f"Database operation failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database operation failed"
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error during signup: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred during registration"
         )
