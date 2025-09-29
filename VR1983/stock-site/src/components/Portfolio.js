@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Wallet, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
+import { ArrowLeft, Wallet, TrendingUp, TrendingDown, BarChart3, Maximize2 } from "lucide-react";
 
 const Portfolio = () => {
   const [holdings, setHoldings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [expandedView, setExpandedView] = useState(false);
   const navigate = useNavigate();
 
   const BASE_URL = process.env.REACT_APP_API_URL || "http://192.168.1.58:8000";
@@ -178,12 +179,24 @@ const Portfolio = () => {
           </div>
         </div>
 
-        {/* Holdings Grid */}
+        {/* Holdings Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Wallet size={24} />
-            Your Holdings ({holdings.length})
-          </h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <Wallet size={24} />
+              Your Holdings ({holdings.length})
+            </h2>
+            
+            {holdings.length > 0 && (
+              <button
+                onClick={() => setExpandedView(!expandedView)}
+                className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-shadow"
+              >
+                <Maximize2 size={16} />
+                {expandedView ? 'Compact View' : 'Expand View'}
+              </button>
+            )}
+          </div>
           
           {holdings.length === 0 ? (
             <div className="bg-white rounded-xl shadow-lg p-12 text-center">
@@ -198,23 +211,40 @@ const Portfolio = () => {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className={`grid gap-6 ${
+              expandedView 
+                ? 'grid-cols-1 lg:grid-cols-2' 
+                : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+            }`}>
               {holdings.map((holding, index) => (
-                <div key={index} className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <div 
+                  key={index} 
+                  className={`bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 ${
+                    expandedView ? 'p-6' : 'p-4'
+                  }`}
+                >
                   {/* Card Header */}
-                  <div className="p-6 border-b border-gray-100">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-800">{holding.symbol}</h3>
+                  <div className={`border-b border-gray-100 ${expandedView ? 'pb-4 mb-4' : 'pb-3 mb-3'}`}>
+                    <div className="flex justify-between items-start">
+                      <div className={`${expandedView ? 'min-w-0 flex-1' : ''}`}>
+                        <h3 className={`font-bold text-gray-800 truncate ${
+                          expandedView ? 'text-xl' : 'text-lg'
+                        }`}>
+                          {holding.symbol}
+                        </h3>
                         <p className="text-gray-500 text-sm">{holding.exchange}</p>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRiskColor(holding.risk_level)} border`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${
+                        getRiskColor(holding.risk_level)
+                      } border`}>
                         {holding.risk_level}
                       </span>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      <span className={`text-lg font-semibold ${getProfitLossColor(holding.profit_loss)}`}>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className={`font-semibold ${
+                        expandedView ? 'text-xl' : 'text-lg'
+                      } ${getProfitLossColor(holding.profit_loss)}`}>
                         ₹{holding.current_price.toFixed(2)}
                       </span>
                       <span className={`text-sm ${getProfitLossColor(holding.profit_loss)} flex items-center gap-1`}>
@@ -225,26 +255,24 @@ const Portfolio = () => {
                   </div>
 
                   {/* Card Body */}
-                  <div className="p-6">
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Quantity:</span>
-                        <span className="font-medium">{holding.quantity}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Avg Price:</span>
-                        <span className="font-medium">₹{holding.average_price.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Investment:</span>
-                        <span className="font-medium">₹{holding.investment_value.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Current Value:</span>
-                        <span className="font-medium">₹{holding.current_value.toFixed(2)}</span>
-                      </div>
+                  <div className={expandedView ? 'space-y-4' : 'space-y-2'}>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Quantity:</span>
+                      <span className="font-medium">{holding.quantity}</span>
                     </div>
-
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Avg Price:</span>
+                      <span className="font-medium">₹{holding.average_price.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Investment:</span>
+                      <span className="font-medium">₹{holding.investment_value.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Current Value:</span>
+                      <span className="font-medium">₹{holding.current_value.toFixed(2)}</span>
+                    </div>
+                    
                     {/* Progress Bar */}
                     <div className="mt-4">
                       <div className="flex justify-between text-sm text-gray-600 mb-1">
@@ -253,8 +281,15 @@ const Portfolio = () => {
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
-                          className={`h-2 rounded-full ${holding.profit_loss >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                          style={{ width: `${Math.min(Math.abs((holding.profit_loss / holding.investment_value) * 100), 100)}%` }}
+                          className={`h-2 rounded-full ${
+                            holding.profit_loss >= 0 ? 'bg-green-500' : 'bg-red-500'
+                          }`}
+                          style={{ 
+                            width: `${Math.min(
+                              Math.abs((holding.profit_loss / holding.investment_value) * 100), 
+                              100
+                            )}%` 
+                          }}
                         ></div>
                       </div>
                     </div>
