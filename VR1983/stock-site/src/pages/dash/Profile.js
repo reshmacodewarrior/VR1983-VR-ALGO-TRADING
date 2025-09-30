@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { User, Mail, Phone, Calendar, Badge, Edit3, CreditCard, BarChart3, Settings, LogOut, Shield, Globe, Award, Wallet, TrendingUp, TrendingDown } from "lucide-react";
+import { User, Mail, Phone, Calendar, Badge, Edit3, BarChart3,LogOut, Shield,Wallet} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { toast } from "react-toastify";
 

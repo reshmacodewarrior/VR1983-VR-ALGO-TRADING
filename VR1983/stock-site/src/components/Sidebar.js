@@ -3,20 +3,13 @@ import React, { useState } from "react";
 import {
   FaHome,
   FaChartLine,
-  FaExchangeAlt,
-  FaClock,
   FaUser,
   FaSignOutAlt,
   FaBars,
-  FaCog,
-  FaQuestionCircle,
-  FaWallet,
-  FaRobot,
 } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { SiIobroker } from "react-icons/si";
-import logo from "../asset/vrlogo.png";
 
 export default function SideNavbar() {
   const [isOpen, setIsOpen] = useState(true);
@@ -32,21 +25,15 @@ export default function SideNavbar() {
       path: "/livemarket",
       icon: <FaChartLine className="text-lg" />,
     },
-    
     {
       name: "Broker Account",
       path: "/broker",
       icon: <SiIobroker className="text-lg" />,
     },
-    
-    // { name: "AI Strategies", path: "/strategies", icon: <FaRobot className="text-lg" /> },
-    // { name: "Wallet", path: "/wallet", icon: <FaWallet className="text-lg" /> },
     { name: "Profile", path: "/profile", icon: <FaUser className="text-lg" /> },
   ];
 
   const bottomMenuItems = [
-    // { name: "Settings", path: "/settings", icon: <FaCog className="text-lg" /> },
-    // { name: "Help", path: "/help", icon: <FaQuestionCircle className="text-lg" /> },
     {
       name: "Logout",
       path: "/login",
@@ -75,14 +62,14 @@ export default function SideNavbar() {
 
   return (
     <div
-      className={`flex flex-col bg-gradient-to-b from-gray-900 to-blue-900 text-white p-5 transition-all duration-300 relative ${
+      className={`flex flex-col bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 text-white p-5 transition-all duration-300 relative ${
         isOpen ? "w-64" : "w-20"
-      } shadow-2xl`}
+      } shadow-lg border-r border-blue-700`}
     >
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="absolute -right-3 top-6 bg-gradient-to-r from-blue-700 to-purple-700 text-white p-2 rounded-full focus:outline-none z-10 shadow-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-300"
+        className="absolute -right-3 top-6 bg-blue-700 text-white p-2 rounded-full focus:outline-none z-10 shadow-lg hover:bg-blue-600 transition-all duration-300 hover:scale-110 border border-blue-600"
       >
         <FaBars className="text-sm" />
       </button>
@@ -95,10 +82,10 @@ export default function SideNavbar() {
         >
           {isOpen && (
             <div className="flex flex-col">
-              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-400">
+              <h1 className="text-xl font-bold text-white">
                 VR ALGO TRADING
               </h1>
-              <p className="text-xs text-blue-300">Next Generation Trading Platform</p>
+              <p className="text-xs text-blue-200 mt-1">Next Generation Trading Platform</p>
             </div>
           )}
         </div>
@@ -118,32 +105,31 @@ export default function SideNavbar() {
               onMouseLeave={handleMouseLeave}
               className={`flex items-center ${
                 isOpen ? "gap-3 px-4" : "justify-center"
-              } w-full py-3 rounded-xl transition-all duration-300 relative group ${
+              } w-full py-3 rounded-lg transition-all duration-200 relative group ${
                 isActive
-                  ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg"
-                  : "text-gray-300 hover:bg-blue-800/50 hover:text-white"
+                  ? "bg-blue-600 text-white shadow-md"
+                  : "text-blue-100 hover:bg-blue-700 hover:text-white"
               }`}
             >
               <div
-                className={`transition-transform duration-300 ${
-                  isHovered || isActive ? "scale-110" : ""
-                }`}
+                className={`transition-transform duration-200 ${
+                  isHovered || isActive ? "scale-110" : "scale-100"
+                } text-white`}
               >
                 {item.icon}
               </div>
 
-              {isOpen && <span className="font-medium">{item.name}</span>}
+              {isOpen && (
+                <span className="font-medium">
+                  {item.name}
+                </span>
+              )}
 
               {/* Tooltip for collapsed state */}
               {!isOpen && (
-                <div className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-sm rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-20">
+                <div className="absolute left-full ml-3 px-2 py-1 bg-blue-800 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-20 border border-blue-600">
                   {item.name}
                 </div>
-              )}
-
-              {/* Active indicator */}
-              {isActive && isOpen && (
-                <div className="absolute right-3 w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
               )}
             </button>
           );
@@ -151,7 +137,7 @@ export default function SideNavbar() {
       </nav>
 
       {/* Divider */}
-      {isOpen && <div className="border-t border-blue-700/50 my-4"></div>}
+      {isOpen && <div className="border-t border-blue-700 my-4"></div>}
 
       {/* Bottom Menu */}
       <nav className="space-y-1">
@@ -167,27 +153,29 @@ export default function SideNavbar() {
               onMouseLeave={handleMouseLeave}
               className={`flex items-center ${
                 isOpen ? "gap-3 px-4" : "justify-center"
-              } w-full py-3 rounded-xl transition-all duration-300 group ${
+              } w-full py-3 rounded-lg transition-all duration-200 group ${
                 item.name === "Logout"
-                  ? "text-red-300 hover:bg-red-900/50 hover:text-red-100"
-                  : isActive
-                  ? "bg-blue-800/30 text-white"
-                  : "text-gray-400 hover:bg-blue-800/30 hover:text-white"
+                  ? "text-red-300 hover:bg-red-900 hover:text-white"
+                  : "text-blue-200 hover:bg-blue-700 hover:text-white"
               }`}
             >
               <div
-                className={`transition-transform duration-300 ${
-                  isHovered || isActive ? "scale-110" : ""
+                className={`transition-transform duration-200 ${
+                  isHovered || isActive ? "scale-110" : "scale-100"
                 }`}
               >
                 {item.icon}
               </div>
 
-              {isOpen && <span className="font-medium">{item.name}</span>}
+              {isOpen && (
+                <span>
+                  {item.name}
+                </span>
+              )}
 
               {/* Tooltip for collapsed state */}
               {!isOpen && (
-                <div className="absolute left-full ml-3 px-2 py-1 bg-gray-900 text-white text-sm rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-20">
+                <div className="absolute left-full ml-3 px-2 py-1 bg-blue-800 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-20 border border-blue-600">
                   {item.name}
                 </div>
               )}
@@ -198,9 +186,9 @@ export default function SideNavbar() {
 
       {/* User Info Footer */}
       {isOpen && (
-        <div className="mt-6 pt-4 border-t border-blue-700/30">
+        <div className="mt-6 pt-4 border-t border-blue-700">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-700 flex items-center justify-center text-white font-bold">
+            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold shadow">
               {localStorage.getItem("user")
                 ? JSON.parse(localStorage.getItem("user"))
                     .username?.charAt(0)
@@ -208,12 +196,12 @@ export default function SideNavbar() {
                 : "G"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">
+              <p className="text-sm font-medium text-white truncate">
                 {localStorage.getItem("user")
                   ? JSON.parse(localStorage.getItem("user")).username
                   : "Guest"}
               </p>
-              <p className="text-xs text-blue-300 truncate">
+              <p className="text-xs text-blue-200 truncate">
                 {localStorage.getItem("user")
                   ? JSON.parse(localStorage.getItem("user")).email
                   : "guest@example.com"}
@@ -222,8 +210,6 @@ export default function SideNavbar() {
           </div>
         </div>
       )}
-   
-     
     </div>
   );
 }

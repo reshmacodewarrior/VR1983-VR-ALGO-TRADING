@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import logo from "../asset/vrlogo.png";
 import userAvatar from "../asset/user-img.jpg";
-import { User, LogOut, Settings, ChevronDown, Bell, Wallet, FileText } from "lucide-react"; // Added FileText icon
+import { User, LogOut, Settings, ChevronDown, Bell, Wallet, FileText } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -51,7 +51,6 @@ export default function TopNavbar() {
 
       if (res.ok) {
         const data = await res.json();
-        // Ensure all fields have default values to avoid empty fields
         const processedHoldings = data.map(holding => ({
           symbol: holding.symbol || 'N/A',
           exchange: holding.exchange || 'NSE',
@@ -119,9 +118,7 @@ export default function TopNavbar() {
     window.location.reload();
   };
 
-  // Holdings List Component (keep your existing HoldingsDropdown component)
   const HoldingsDropdown = () => {
-    // ... (keep your existing HoldingsDropdown implementation)
     if (!holdingsOpen) return null;
 
     const getRiskColor = (risk) => {
@@ -137,8 +134,8 @@ export default function TopNavbar() {
     const totalCurrentValue = holdings.reduce((sum, h) => sum + ((h.current_price || 0) * (h.quantity || 0)), 0);
 
     return (
-      <div className="absolute right-0 top-full mt-2 w-96 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden z-50 max-h-96 overflow-y-auto">
-        <div className="p-4 bg-gradient-to-r from-blue-900 to-purple-900 text-white">
+      <div className="absolute right-0 top-full mt-2 w-96 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden z-50 max-h-96 overflow-y-auto">
+        <div className="p-4 bg-blue-800 text-white">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-lg flex items-center gap-2">
               <Wallet size={18} />
@@ -146,7 +143,7 @@ export default function TopNavbar() {
             </h3>
             <div className="text-right">
               <p className="text-sm">Total P&L: 
-                <span className={totalProfitLoss >= 0 ? "text-green-400 ml-1" : "text-red-400 ml-1"}>
+                <span className={totalProfitLoss >= 0 ? "text-green-300 ml-1" : "text-red-300 ml-1"}>
                   ₹{totalProfitLoss.toFixed(2)}
                 </span>
               </p>
@@ -210,7 +207,7 @@ export default function TopNavbar() {
         <div className="border-t border-gray-200 p-3 bg-gray-50">
           <button 
             onClick={handleViewPortfolio}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors text-sm font-medium"
           >
             View Full Portfolio
           </button>
@@ -220,20 +217,20 @@ export default function TopNavbar() {
   };
 
   return (
-    <div className="w-full bg-gradient-to-r from-blue-900 to-purple-900 text-white px-6 py-3 flex justify-between items-center shadow-xl sticky top-0 z-50">
+    <div className="w-full bg-blue-800 text-white px-6 py-3 flex justify-between items-center shadow-md border-b border-blue-700 sticky top-0 z-50">
       {/* Left Logo and Brand */}
       <div className="flex items-center gap-4">
         <div className="relative">
           <img
             src={logo}
             alt="VR Algo Trading Logo"
-            className="h-14 w-auto rounded-full border-2 border-blue-300 shadow-lg"
+            className="h-12 w-auto rounded-full border-2 border-blue-300 shadow"
           />
-          <div className="absolute -bottom-1 -right-1 h-5 w-5 bg-green-500 rounded-full border-2 border-white"></div>
+          <div className="absolute -bottom-1 -right-1 h-4 w-4 bg-green-500 rounded-full border-2 border-white"></div>
         </div>
         
         <div className="hidden md:block">
-          <h2 className="font-bold text-2xl bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-400">
+          <h2 className="font-bold text-xl text-white">
             VR ALGO TRADING
           </h2>
           <p className="text-xs text-blue-200">Next Generation Trading Platform</p>
@@ -241,12 +238,12 @@ export default function TopNavbar() {
       </div>
 
       {/* Right User Section */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
 
         {/* Orders Button */}
         <button
           onClick={handleOrders}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-800 hover:bg-blue-700 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors border border-blue-600"
         >
           <FileText size={18} />
           <span className="hidden sm:block">My Orders</span>
@@ -256,7 +253,7 @@ export default function TopNavbar() {
         <div className="relative" ref={holdingsRef}>
           <button
             onClick={handleHoldingsClick}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-800 hover:bg-blue-700 rounded-lg transition-colors relative group"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors border border-blue-600 relative group"
           >
             <Wallet size={18} />
             <span className="hidden sm:block">My Holdings</span>
@@ -274,7 +271,7 @@ export default function TopNavbar() {
         <div className="relative" ref={notificationsRef}>
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
-            className="p-2 hover:bg-blue-800 rounded-lg transition-colors relative"
+            className="p-2 hover:bg-blue-700 rounded transition-colors relative text-white border border-transparent hover:border-blue-600"
           >
             <Bell size={20} />
             {unreadCount > 0 && (
@@ -285,15 +282,15 @@ export default function TopNavbar() {
           </button>
 
           {notificationsOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
-              <div className="p-4 bg-gradient-to-r from-blue-900 to-purple-900 text-white">
+            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-300 rounded-lg shadow-lg z-50">
+              <div className="p-4 bg-blue-800 text-white">
                 <h3 className="font-semibold">Notifications</h3>
                 <p className="text-sm text-blue-200">{unreadCount} unread</p>
               </div>
               
               <div className="max-h-64 overflow-y-auto">
                 {notifications.map((notification) => (
-                  <div key={notification.id} className={`p-3 border-b border-gray-100 ${!notification.read ? 'bg-blue-50' : ''}`}>
+                  <div key={notification.id} className={`p-3 border-b border-gray-200 ${!notification.read ? 'bg-blue-50' : ''}`}>
                     <p className="text-sm text-gray-800">{notification.text}</p>
                     <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
                   </div>
@@ -312,8 +309,8 @@ export default function TopNavbar() {
         {/* User Profile */}
         <div className="relative flex items-center gap-2" ref={dropdownRef}>
           <div className="hidden md:block text-right">
-            <p className="text-sm font-medium">Welcome, <span className="text-cyan-300">{user.username}</span></p>
-            <p className="text-xs text-blue-200">{user.email}</p>
+            <p className="text-sm font-medium">Welcome, <span className="text-blue-200">{user.username}</span></p>
+            <p className="text-xs text-blue-300">{user.email}</p>
           </div>
           
           <div 
@@ -323,7 +320,7 @@ export default function TopNavbar() {
             <img
               src={userAvatar}
               alt="User profile"
-              className="h-10 w-10 rounded-full border-2 border-blue-300 shadow-md group-hover:border-cyan-400 transition-colors"
+              className="h-10 w-10 rounded-full border-2 border-blue-300 shadow group-hover:border-blue-200 transition-colors"
             />
             <div className="absolute -bottom-1 -right-1 bg-blue-600 rounded-full p-1">
               <ChevronDown size={12} className={`text-white transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -332,18 +329,18 @@ export default function TopNavbar() {
 
           {/* Dropdown Menu */}
           {open && (
-            <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden z-50">
-              <div className="p-4 bg-gradient-to-r from-blue-900 to-purple-900 text-white">
+            <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden z-50">
+              <div className="p-4 bg-blue-800 text-white">
                 <p className="font-semibold truncate">{user.username}</p>
                 <p className="text-sm text-blue-200 truncate">{user.email}</p>
               </div>
               
               <div className="p-2">
-                <button onClick={handleProfile} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-md transition-colors">
+                <button onClick={handleProfile} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded transition-colors">
                   <User size={16} />
                   <span>Profile</span>
                 </button>
-                <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded-md transition-colors">
+                <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded transition-colors">
                   <Settings size={16} />
                   <span>Settings</span>
                 </button>
@@ -353,7 +350,7 @@ export default function TopNavbar() {
               
               <div className="p-2">
                 <button
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
                   onClick={handleLogout}
                 >
                   <LogOut size={16} />

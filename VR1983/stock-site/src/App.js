@@ -49,15 +49,42 @@ export default function App() {
               <Route path="livemarket" element={<LiveMarket />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="broker" element={<BrokerAccountForm />} />
-              <Route path="orders" element={<OrdersPage />} /> {/* Add this route */}
-
+              <Route path="orders" element={<OrdersPage />} />
             </Route>
 
-            {/* Catch-all route (optional) */}
+            {/* Catch-all route */}
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </Router>
-        <ToastContainer />
+        
+        {/* Light Blue Theme Toast Container */}
+        <ToastContainer
+          position="top-right"
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+          toastStyle={{
+            backgroundColor: '#e0f2fe', // light blue background
+            color: '#075985', // dark blue text
+            border: '1px solid #7dd3fc', // blue border
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px -1px rgba(14, 165, 233, 0.1), 0 2px 4px -1px rgba(14, 165, 233, 0.06)',
+            fontFamily: 'Poppins, sans-serif'
+          }}
+          progressStyle={{
+            background: 'linear-gradient(to right, #0ea5e9, #38bdf8)', // blue gradient
+            height: '3px'
+          }}
+          style={{
+            zIndex: 9999
+          }}
+        />
       </ProfileProvider>
     </AuthProvider>
   );

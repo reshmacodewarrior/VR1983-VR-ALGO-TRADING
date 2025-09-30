@@ -48,7 +48,7 @@ const Navigation = ({
             onClick={() => setCurrentView(option.id)}
             className={`flex items-center px-4 py-3 rounded-xl transition-all duration-300 ${
               currentView === option.id
-                ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold shadow-lg"
+                ? "bg-gradient-to-r from-blue-400 to-purple-500 text-white font-semibold shadow-lg"
                 : "bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white"
             }`}
           >
