@@ -25,6 +25,9 @@ export default function TopNavbar() {
 
   const BASE_URL = process.env.REACT_APP_API_URL || "http://192.168.1.58:8000";
 
+  // Primary color
+  const primaryColor = "#42a5f5";
+
   // Mock notifications data
   const notifications = [
     { id: 1, text: "Your algorithm executed successfully", time: "2 min ago", read: false },
@@ -126,7 +129,7 @@ export default function TopNavbar() {
         case 'low': return 'bg-green-100 text-green-800';
         case 'medium': return 'bg-yellow-100 text-yellow-800';
         case 'high': return 'bg-red-100 text-red-800';
-        default: return 'bg-gray-100 text-gray-800';
+        default: return 'bg-gray-100 text-black-800';
       }
     };
 
@@ -135,7 +138,10 @@ export default function TopNavbar() {
 
     return (
       <div className="absolute right-0 top-full mt-2 w-96 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden z-50 max-h-96 overflow-y-auto">
-        <div className="p-4 bg-blue-800 text-white">
+        <div 
+          className="p-4 text-black"
+          style={{ backgroundColor: primaryColor }}
+        >
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-lg flex items-center gap-2">
               <Wallet size={18} />
@@ -155,7 +161,10 @@ export default function TopNavbar() {
         <div className="p-3 max-h-64 overflow-y-auto">
           {holdingsLoading ? (
             <div className="text-center py-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+              <div 
+                className="animate-spin rounded-full h-6 w-6 border-b-2 mx-auto"
+                style={{ borderColor: primaryColor }}
+              ></div>
               <p className="text-gray-500 text-sm mt-2">Loading holdings...</p>
             </div>
           ) : holdings.length === 0 ? (
@@ -207,7 +216,8 @@ export default function TopNavbar() {
         <div className="border-t border-gray-200 p-3 bg-gray-50">
           <button 
             onClick={handleViewPortfolio}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors text-sm font-medium"
+            className="w-full text-white py-2 px-4 rounded hover:opacity-90 transition-colors text-sm font-medium"
+            style={{ backgroundColor: primaryColor }}
           >
             View Full Portfolio
           </button>
@@ -217,14 +227,17 @@ export default function TopNavbar() {
   };
 
   return (
-    <div className="w-full bg-blue-800 text-white px-6 py-3 flex justify-between items-center shadow-md border-b border-blue-700 sticky top-0 z-50">
+    <div 
+      className="w-full text-white px-6 py-3 flex justify-between items-center shadow-md border-b sticky top-0 z-50"
+      style={{ backgroundColor: primaryColor }}
+    >
       {/* Left Logo and Brand */}
       <div className="flex items-center gap-4">
         <div className="relative">
           <img
             src={logo}
             alt="VR Algo Trading Logo"
-            className="h-12 w-auto rounded-full border-2 border-blue-300 shadow"
+            className="h-12 w-auto rounded-full border-2 border-white shadow"
           />
           <div className="absolute -bottom-1 -right-1 h-4 w-4 bg-green-500 rounded-full border-2 border-white"></div>
         </div>
@@ -233,7 +246,7 @@ export default function TopNavbar() {
           <h2 className="font-bold text-xl text-white">
             VR ALGO TRADING
           </h2>
-          <p className="text-xs text-blue-200">Next Generation Trading Platform</p>
+          <p className="text-xs text-blue-100">Next Generation Trading Platform</p>
         </div>
       </div>
 
@@ -243,7 +256,7 @@ export default function TopNavbar() {
         {/* Orders Button */}
         <button
           onClick={handleOrders}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors border border-blue-600"
+          className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded transition-colors border border-white/30"
         >
           <FileText size={18} />
           <span className="hidden sm:block">My Orders</span>
@@ -253,7 +266,7 @@ export default function TopNavbar() {
         <div className="relative" ref={holdingsRef}>
           <button
             onClick={handleHoldingsClick}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors border border-blue-600 relative group"
+            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded transition-colors border border-white/30 relative group"
           >
             <Wallet size={18} />
             <span className="hidden sm:block">My Holdings</span>
@@ -271,7 +284,7 @@ export default function TopNavbar() {
         <div className="relative" ref={notificationsRef}>
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
-            className="p-2 hover:bg-blue-700 rounded transition-colors relative text-white border border-transparent hover:border-blue-600"
+            className="p-2 hover:bg-white/20 rounded transition-colors relative text-white border border-transparent hover:border-white/30"
           >
             <Bell size={20} />
             {unreadCount > 0 && (
@@ -283,9 +296,12 @@ export default function TopNavbar() {
 
           {notificationsOpen && (
             <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-300 rounded-lg shadow-lg z-50">
-              <div className="p-4 bg-blue-800 text-white">
+              <div 
+                className="p-4 text-white"
+                style={{ backgroundColor: primaryColor }}
+              >
                 <h3 className="font-semibold">Notifications</h3>
-                <p className="text-sm text-blue-200">{unreadCount} unread</p>
+                <p className="text-sm text-blue-100">{unreadCount} unread</p>
               </div>
               
               <div className="max-h-64 overflow-y-auto">
@@ -298,7 +314,10 @@ export default function TopNavbar() {
               </div>
               
               <div className="p-3 border-t border-gray-200">
-                <button className="w-full text-center text-sm text-blue-600 hover:text-blue-800">
+                <button 
+                  className="w-full text-center text-sm hover:text-blue-800"
+                  style={{ color: primaryColor }}
+                >
                   Mark all as read
                 </button>
               </div>
@@ -309,8 +328,8 @@ export default function TopNavbar() {
         {/* User Profile */}
         <div className="relative flex items-center gap-2" ref={dropdownRef}>
           <div className="hidden md:block text-right">
-            <p className="text-sm font-medium">Welcome, <span className="text-blue-200">{user.username}</span></p>
-            <p className="text-xs text-blue-300">{user.email}</p>
+            <p className="text-sm font-medium">Welcome, <span className="text-blue-100">{user.username}</span></p>
+            <p className="text-xs text-blue-100">{user.email}</p>
           </div>
           
           <div 
@@ -320,9 +339,12 @@ export default function TopNavbar() {
             <img
               src={userAvatar}
               alt="User profile"
-              className="h-10 w-10 rounded-full border-2 border-blue-300 shadow group-hover:border-blue-200 transition-colors"
+              className="h-10 w-10 rounded-full border-2 border-white shadow group-hover:border-blue-100 transition-colors"
             />
-            <div className="absolute -bottom-1 -right-1 bg-blue-600 rounded-full p-1">
+            <div 
+              className="absolute -bottom-1 -right-1 rounded-full p-1"
+              style={{ backgroundColor: primaryColor }}
+            >
               <ChevronDown size={12} className={`text-white transition-transform ${open ? 'rotate-180' : ''}`} />
             </div>
           </div>
@@ -330,9 +352,12 @@ export default function TopNavbar() {
           {/* Dropdown Menu */}
           {open && (
             <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden z-50">
-              <div className="p-4 bg-blue-800 text-white">
+              <div 
+                className="p-4 text-white"
+                style={{ backgroundColor: primaryColor }}
+              >
                 <p className="font-semibold truncate">{user.username}</p>
-                <p className="text-sm text-blue-200 truncate">{user.email}</p>
+                <p className="text-sm text-blue-100 truncate">{user.email}</p>
               </div>
               
               <div className="p-2">

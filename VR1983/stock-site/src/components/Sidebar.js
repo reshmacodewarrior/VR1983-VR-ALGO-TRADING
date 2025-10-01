@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-
 import {
   FaHome,
   FaChartLine,
@@ -17,6 +16,9 @@ export default function SideNavbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setAuth } = useAuth();
+
+  // Primary color
+  const primaryColor = "#42a5f5";
 
   const menuItems = [
     { name: "Home", path: "/home", icon: <FaHome className="text-lg" /> },
@@ -62,14 +64,18 @@ export default function SideNavbar() {
 
   return (
     <div
-      className={`flex flex-col bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 text-white p-5 transition-all duration-300 relative ${
+      className={`flex flex-col bg-white text-gray-800 p-5 transition-all duration-300 relative ${
         isOpen ? "w-64" : "w-20"
-      } shadow-lg border-r border-blue-700`}
+      } shadow-lg border-r border-gray-200`}
     >
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="absolute -right-3 top-6 bg-blue-700 text-white p-2 rounded-full focus:outline-none z-10 shadow-lg hover:bg-blue-600 transition-all duration-300 hover:scale-110 border border-blue-600"
+        className="absolute -right-3 top-6 text-white p-2 rounded-full focus:outline-none z-10 shadow-lg hover:scale-110 transition-all duration-300 border"
+        style={{
+          backgroundColor: primaryColor,
+          borderColor: primaryColor,
+        }}
       >
         <FaBars className="text-sm" />
       </button>
@@ -82,10 +88,15 @@ export default function SideNavbar() {
         >
           {isOpen && (
             <div className="flex flex-col">
-              <h1 className="text-xl font-bold text-white">
+              <h1 
+                className="text-xl font-bold"
+                style={{ color: primaryColor }}
+              >
                 VR ALGO TRADING
               </h1>
-              <p className="text-xs text-blue-200 mt-1">Next Generation Trading Platform</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Next Generation Trading Platform
+              </p>
             </div>
           )}
         </div>
@@ -107,14 +118,20 @@ export default function SideNavbar() {
                 isOpen ? "gap-3 px-4" : "justify-center"
               } w-full py-3 rounded-lg transition-all duration-200 relative group ${
                 isActive
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "text-blue-100 hover:bg-blue-700 hover:text-white"
+                  ? "text-white shadow-md"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               }`}
+              style={{
+                backgroundColor: isActive ? primaryColor : "",
+              }}
             >
               <div
                 className={`transition-transform duration-200 ${
                   isHovered || isActive ? "scale-110" : "scale-100"
-                } text-white`}
+                }`}
+                style={{
+                  color: isActive ? "white" : primaryColor,
+                }}
               >
                 {item.icon}
               </div>
@@ -127,7 +144,13 @@ export default function SideNavbar() {
 
               {/* Tooltip for collapsed state */}
               {!isOpen && (
-                <div className="absolute left-full ml-3 px-2 py-1 bg-blue-800 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-20 border border-blue-600">
+                <div 
+                  className="absolute left-full ml-3 px-2 py-1 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-20 border"
+                  style={{
+                    backgroundColor: primaryColor,
+                    borderColor: primaryColor,
+                  }}
+                >
                   {item.name}
                 </div>
               )}
@@ -137,7 +160,7 @@ export default function SideNavbar() {
       </nav>
 
       {/* Divider */}
-      {isOpen && <div className="border-t border-blue-700 my-4"></div>}
+      {isOpen && <div className="border-t border-gray-200 my-4"></div>}
 
       {/* Bottom Menu */}
       <nav className="space-y-1">
@@ -153,11 +176,7 @@ export default function SideNavbar() {
               onMouseLeave={handleMouseLeave}
               className={`flex items-center ${
                 isOpen ? "gap-3 px-4" : "justify-center"
-              } w-full py-3 rounded-lg transition-all duration-200 group ${
-                item.name === "Logout"
-                  ? "text-red-300 hover:bg-red-900 hover:text-white"
-                  : "text-blue-200 hover:bg-blue-700 hover:text-white"
-              }`}
+              } w-full py-3 rounded-lg transition-all duration-200 group text-red-500 hover:bg-red-50 hover:text-red-700`}
             >
               <div
                 className={`transition-transform duration-200 ${
@@ -175,7 +194,7 @@ export default function SideNavbar() {
 
               {/* Tooltip for collapsed state */}
               {!isOpen && (
-                <div className="absolute left-full ml-3 px-2 py-1 bg-blue-800 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-20 border border-blue-600">
+                <div className="absolute left-full ml-3 px-2 py-1 bg-red-500 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-20 border border-red-500">
                   {item.name}
                 </div>
               )}
@@ -186,9 +205,12 @@ export default function SideNavbar() {
 
       {/* User Info Footer */}
       {isOpen && (
-        <div className="mt-6 pt-4 border-t border-blue-700">
+        <div className="mt-6 pt-4 border-t border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold shadow">
+            <div 
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow"
+              style={{ backgroundColor: primaryColor }}
+            >
               {localStorage.getItem("user")
                 ? JSON.parse(localStorage.getItem("user"))
                     .username?.charAt(0)
@@ -196,12 +218,12 @@ export default function SideNavbar() {
                 : "G"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">
+              <p className="text-sm font-medium text-gray-900 truncate">
                 {localStorage.getItem("user")
                   ? JSON.parse(localStorage.getItem("user")).username
                   : "Guest"}
               </p>
-              <p className="text-xs text-blue-200 truncate">
+              <p className="text-xs text-gray-500 truncate">
                 {localStorage.getItem("user")
                   ? JSON.parse(localStorage.getItem("user")).email
                   : "guest@example.com"}
