@@ -14,6 +14,9 @@ const SingleStock = ({ period, interval }) => {
   const [watchlist, setWatchlist] = useState([]);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
 
+  // Primary color matching the theme
+  const primaryColor = "#42a5f5";
+
   // Load history on component mount
   useEffect(() => {
     const savedHistory = JSON.parse(localStorage.getItem("searchHistory") || "[]");
@@ -170,9 +173,15 @@ const SingleStock = ({ period, interval }) => {
   const HoldingsList = () => {
     if (!holdings.length)
       return (
-        <div className="p-4 bg-gray-50 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-4 text-black">My Holdings</h3>
-          <p className="text-gray-500">No holdings yet</p>
+        <div 
+          className="p-4 rounded-lg shadow"
+          style={{
+            backgroundColor: `${primaryColor}10`,
+            border: `1px solid ${primaryColor}20`
+          }}
+        >
+          <h3 className="text-lg font-medium mb-4" style={{ color: primaryColor }}>My Holdings</h3>
+          <p style={{ color: `${primaryColor}80` }}>No holdings yet</p>
         </div>
       );
 
@@ -185,44 +194,63 @@ const SingleStock = ({ period, interval }) => {
         case "high":
           return "text-red-600";
         default:
-          return "text-gray-600";
+          return `text-[${primaryColor}]`;
       }
     };
 
     return (
-      <div className="p-4 bg-gray-50 rounded-lg shadow">
-        <h3 className="text-lg font-medium mb-4 text-black">My Holdings</h3>
+      <div 
+        className="p-4 rounded-lg shadow"
+        style={{
+          backgroundColor: `${primaryColor}10`,
+          border: `1px solid ${primaryColor}20`
+        }}
+      >
+        <h3 className="text-lg font-medium mb-4" style={{ color: primaryColor }}>My Holdings</h3>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-full divide-y" style={{ borderColor: `${primaryColor}20` }}>
             <thead>
               <tr>
                 {["Symbol", "Qty", "Avg Price", "Current Price", "P&L", "Risk", "Exchange", "Action"].map((h) => (
-                  <th key={h} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
+                  <th 
+                    key={h} 
+                    className="px-4 py-2 text-left text-xs font-medium uppercase"
+                    style={{ color: `${primaryColor}80`, borderColor: `${primaryColor}20` }}
+                  >
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y" style={{ borderColor: `${primaryColor}20` }}>
               {holdings.map((h, i) => (
                 <tr key={i}>
-                  <td className="px-4 py-2 text-black">{h.symbol}</td>
-                  <td className="px-4 py-2 text-black">{h.quantity}</td>
-                  <td className="px-4 py-2 text-black">₹{h.average_price?.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-black">₹{h.current_price?.toFixed(2)}</td>
+                  <td className="px-4 py-2" style={{ color: primaryColor }}>{h.symbol}</td>
+                  <td className="px-4 py-2" style={{ color: primaryColor }}>{h.quantity}</td>
+                  <td className="px-4 py-2" style={{ color: primaryColor }}>₹{h.average_price?.toFixed(2)}</td>
+                  <td className="px-4 py-2" style={{ color: primaryColor }}>₹{h.current_price?.toFixed(2)}</td>
                   <td className={`px-4 py-2 ${h.profit_loss >= 0 ? "text-green-600" : "text-red-600"}`}>
                     ₹{h.profit_loss?.toFixed(2)}
                   </td>
                   <td className={`px-4 py-2 font-semibold ${getRiskColor(h.risk_level)}`}>{h.risk_level}</td>
-                  <td className="px-4 py-2 text-blue-600 font-medium">{h.exchange}</td>
+                  <td className="px-4 py-2 font-medium" style={{ color: primaryColor }}>{h.exchange}</td>
                   <td className="px-4 py-2 space-x-2">
                     <button
                       onClick={() => placeOrder(h.symbol, "BUY", h.quantity, h.exchange)}
-                      className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                      className="px-3 py-1 text-white rounded hover:bg-green-700 transition-colors"
+                      style={{ backgroundColor: primaryColor }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#1e88e5';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = primaryColor;
+                      }}
                     >
                       Buy More
                     </button>
                     <button
                       onClick={() => placeOrder(h.symbol, "SELL", h.quantity, h.exchange)}
-                      className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                      className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                     >
                       Sell
                     </button>
@@ -240,7 +268,13 @@ const SingleStock = ({ period, interval }) => {
   const tabs = ["chart"];
 
   return (
-    <div className="p-6 bg-white shadow-lg rounded-xl">
+    <div 
+      className="p-6 shadow-lg rounded-xl"
+      style={{
+        backgroundColor: `${primaryColor}05`,
+        border: `1px solid ${primaryColor}20`
+      }}
+    >
       {/* Search Section with Watchlist Button */}
       <div className="mb-6 flex gap-3 items-center">
         <input
@@ -248,12 +282,26 @@ const SingleStock = ({ period, interval }) => {
           value={symbol}
           onChange={(e) => setSymbol(e.target.value.toUpperCase())}
           placeholder="Enter symbol (e.g., TATAMOTORS.NS, RELIANCE.NS)"
-          className="flex-1 px-4 py-2 border rounded-lg text-black shadow-sm focus:ring focus:ring-blue-300"
+          className="flex-1 px-4 py-2 border rounded-lg shadow-sm focus:ring transition-colors"
+          style={{
+            backgroundColor: 'white',
+            color: 'black',
+            borderColor: `${primaryColor}40`,
+            focusBorderColor: primaryColor,
+            focusRingColor: `${primaryColor}20`
+          }}
         />
         <button
           onClick={analyzeStock}
           disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 text-white rounded-lg shadow hover:scale-105 disabled:opacity-50 transition-all"
+          style={{ backgroundColor: primaryColor }}
+          onMouseEnter={(e) => {
+            if (!loading) e.target.style.backgroundColor = '#1e88e5';
+          }}
+          onMouseLeave={(e) => {
+            if (!loading) e.target.style.backgroundColor = primaryColor;
+          }}
         >
           {loading ? "Loading..." : "Analyze Stock"}
         </button>
@@ -262,11 +310,11 @@ const SingleStock = ({ period, interval }) => {
         {localStorage.getItem("token") && stockData && (
           <button
             onClick={isInWatchlist ? removeFromWatchlist : addToWatchlist}
-            className={`px-4 py-2 rounded-lg shadow ${
+            className={`px-4 py-2 rounded-lg shadow hover:scale-105 text-white flex items-center gap-2 transition-all ${
               isInWatchlist 
                 ? "bg-red-600 hover:bg-red-700" 
                 : "bg-green-600 hover:bg-green-700"
-            } text-white flex items-center gap-2`}
+            }`}
           >
             {isInWatchlist ? (
               <>
@@ -284,7 +332,10 @@ const SingleStock = ({ period, interval }) => {
       {/* Recent Search History */}
       {history.length > 0 && (
         <div className="mt-2 mb-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+          <h4 
+            className="text-sm font-medium mb-2 flex items-center gap-2"
+            style={{ color: primaryColor }}
+          >
             <span>⏰</span> Recent Searches
           </h4>
           <div className="flex flex-wrap gap-2">
@@ -292,7 +343,18 @@ const SingleStock = ({ period, interval }) => {
               <button
                 key={i}
                 onClick={() => setSymbol(s)}
-                className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full shadow hover:bg-gray-200"
+                className="flex items-center gap-1 px-3 py-1 rounded-full shadow hover:scale-105 transition-all"
+                style={{
+                  backgroundColor: `${primaryColor}15`,
+                  color: primaryColor,
+                  border: `1px solid ${primaryColor}30`
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = `${primaryColor}25`;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = `${primaryColor}15`;
+                }}
               >
                 <span>🔍</span> {s}
               </button>
@@ -304,15 +366,26 @@ const SingleStock = ({ period, interval }) => {
       {/* Watchlist Display */}
       {localStorage.getItem("token") && watchlist.length > 0 && (
         <div className="mt-2 mb-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+          <h4 
+            className="text-sm font-medium mb-2 flex items-center gap-2"
+            style={{ color: primaryColor }}
+          >
             <span>⭐</span> My Watchlist
           </h4>
           <div className="flex flex-wrap gap-2">
             {watchlist.map((item, index) => (
-              <div key={index} className="flex items-center gap-1 px-3 py-1 bg-yellow-50 border border-yellow-200 rounded-full shadow">
+              <div 
+                key={index} 
+                className="flex items-center gap-1 px-3 py-1 rounded-full shadow"
+                style={{
+                  backgroundColor: `${primaryColor}10`,
+                  border: `1px solid ${primaryColor}30`
+                }}
+              >
                 <button
                   onClick={() => setSymbol(item.symbol)}
-                  className="text-blue-600 hover:text-blue-800 font-medium"
+                  className="font-medium hover:scale-105 transition-transform"
+                  style={{ color: primaryColor }}
                 >
                   {item.symbol}
                 </button>
@@ -321,7 +394,8 @@ const SingleStock = ({ period, interval }) => {
                     await watchlistAPI.removeFromWatchlist(item.symbol);
                     await fetchWatchlist();
                   }}
-                  className="text-red-500 hover:text-red-700 ml-1"
+                  className="ml-1 hover:scale-110 transition-transform"
+                  style={{ color: '#ef4444' }}
                   title="Remove from watchlist"
                 >
                   ❌
@@ -334,13 +408,19 @@ const SingleStock = ({ period, interval }) => {
 
       {/* Tabs */}
       {stockData && (
-        <div className="flex border-b border-gray-200 mb-6">
+        <div className="flex border-b mb-6" style={{ borderColor: `${primaryColor}20` }}>
           {tabs.map((tab) => (
             <button
               key={tab}
-              className={`px-4 py-2 font-medium ${
-                activeTab === tab ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"
+              className={`px-4 py-2 font-medium transition-colors ${
+                activeTab === tab 
+                  ? `border-b-2` 
+                  : `style={{ color: "${primaryColor}80" }}`
               }`}
+              style={{
+                color: activeTab === tab ? primaryColor : `${primaryColor}80`,
+                borderColor: activeTab === tab ? primaryColor : 'transparent'
+              }}
               onClick={() => {
                 setActiveTab(tab);
                 if (tab === "holdings") fetchHoldings();
@@ -353,15 +433,39 @@ const SingleStock = ({ period, interval }) => {
       )}
 
       {/* Error Message */}
-      {error && <div className="p-3 mb-4 text-red-700 bg-red-100 border border-red-300 rounded-lg">{error}</div>}
+      {error && (
+        <div 
+          className="p-3 mb-4 rounded-lg border"
+          style={{
+            color: '#dc2626',
+            backgroundColor: '#fef2f2',
+            borderColor: '#fecaca'
+          }}
+        >
+          {error}
+        </div>
+      )}
 
       {/* Tab Content */}
       {activeTab === "chart" && stockData && (
         <>
-          <div className="p-4 bg-gray-50 rounded-lg shadow mb-6">
+          <div 
+            className="p-4 rounded-lg shadow mb-6"
+            style={{
+              backgroundColor: `${primaryColor}10`,
+              border: `1px solid ${primaryColor}20`
+            }}
+          >
             <CandlestickChart data={stockData.history} symbol={symbol} />
           </div>
-          <div className="p-4 bg-gray-50 rounded-lg text-black shadow space-y-1">
+          <div 
+            className="p-4 rounded-lg shadow space-y-1"
+            style={{
+              backgroundColor: `${primaryColor}10`,
+              border: `1px solid ${primaryColor}20`,
+              color: primaryColor
+            }}
+          >
             <p><strong>Company:</strong> {stockData.name}</p>
             <p><strong>Currency:</strong> {stockData.currency}</p>
             <p><strong>Last Updated:</strong> {new Date(stockData.last_updated).toLocaleString()}</p>

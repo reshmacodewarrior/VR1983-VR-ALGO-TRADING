@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import logo from "../asset/vrlogo.png";
 import userAvatar from "../asset/user-img.jpg";
-import { User, LogOut, Settings, ChevronDown, Bell, Wallet, FileText } from "lucide-react";
+import { User, LogOut, Settings, ChevronDown, Bell, Wallet, FileText, Search, TrendingUp } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -11,6 +11,7 @@ export default function TopNavbar() {
   const [holdingsOpen, setHoldingsOpen] = useState(false);
   const [holdings, setHoldings] = useState([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const { setAuth } = useAuth();
   const navigate = useNavigate();
   
@@ -25,7 +26,7 @@ export default function TopNavbar() {
 
   const BASE_URL = process.env.REACT_APP_API_URL || "http://192.168.1.58:8000";
 
-  // Primary color
+  // Primary color - Same as original
   const primaryColor = "#42a5f5";
 
   // Mock notifications data
@@ -96,6 +97,7 @@ export default function TopNavbar() {
 
   const handleProfile = () => {
     navigate('/profile');
+    setOpen(false);
   };
 
   const handleOrders = () => {
@@ -111,7 +113,7 @@ export default function TopNavbar() {
 
   const handleViewPortfolio = () => {
     setHoldingsOpen(false);
-    navigate('/profile');
+    navigate('/holdings');
   };
 
   const handleLogout = () => {
@@ -126,10 +128,10 @@ export default function TopNavbar() {
 
     const getRiskColor = (risk) => {
       switch (risk?.toLowerCase()) {
-        case 'low': return 'bg-green-100 text-green-800';
-        case 'medium': return 'bg-yellow-100 text-yellow-800';
-        case 'high': return 'bg-red-100 text-red-800';
-        default: return 'bg-gray-100 text-black-800';
+        case 'low': return 'bg-green-100 text-green-800 border-green-200';
+        case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        case 'high': return 'bg-red-100 text-red-800 border-red-200';
+        default: return 'bg-gray-100 text-gray-800 border-gray-200';
       }
     };
 
@@ -137,72 +139,77 @@ export default function TopNavbar() {
     const totalCurrentValue = holdings.reduce((sum, h) => sum + ((h.current_price || 0) * (h.quantity || 0)), 0);
 
     return (
-      <div className="absolute right-0 top-full mt-2 w-96 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden z-50 max-h-96 overflow-y-auto">
+      <div className="absolute right-0 top-full mt-3 w-96 bg-white border border-gray-300 rounded-xl shadow-2xl overflow-hidden z-50 max-h-96 overflow-y-auto">
         <div 
-          className="p-4 text-black"
+          className="p-5 text-white"
           style={{ backgroundColor: primaryColor }}
         >
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-lg flex items-center gap-2">
-              <Wallet size={18} />
-              My Holdings
-            </h3>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Wallet size={20} className="text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg tracking-tight">My Holdings</h3>
+                <p className="text-blue-100 text-sm font-medium">Real-time portfolio overview</p>
+              </div>
+            </div>
             <div className="text-right">
-              <p className="text-sm">Total P&L: 
+              <p className="text-sm font-semibold">Total P&L: 
                 <span className={totalProfitLoss >= 0 ? "text-green-300 ml-1" : "text-red-300 ml-1"}>
                   ₹{totalProfitLoss.toFixed(2)}
                 </span>
               </p>
-              <p className="text-xs text-blue-200">Value: ₹{totalCurrentValue.toFixed(2)}</p>
+              <p className="text-xs text-blue-200 font-medium">Value: ₹{totalCurrentValue.toFixed(2)}</p>
             </div>
           </div>
         </div>
         
-        <div className="p-3 max-h-64 overflow-y-auto">
+        <div className="p-4 max-h-64 overflow-y-auto">
           {holdingsLoading ? (
-            <div className="text-center py-4">
+            <div className="text-center py-6">
               <div 
-                className="animate-spin rounded-full h-6 w-6 border-b-2 mx-auto"
+                className="animate-spin rounded-full h-8 w-8 border-b-2 border-t-2 mx-auto mb-3"
                 style={{ borderColor: primaryColor }}
               ></div>
-              <p className="text-gray-500 text-sm mt-2">Loading holdings...</p>
+              <p className="text-gray-500 text-sm font-medium">Loading holdings...</p>
             </div>
           ) : holdings.length === 0 ? (
-            <div className="text-center py-4">
-              <Wallet size={32} className="mx-auto text-gray-400 mb-2" />
-              <p className="text-gray-500">No holdings yet</p>
-              <p className="text-gray-400 text-sm">Start trading to see your holdings here</p>
+            <div className="text-center py-6">
+              <Wallet size={40} className="mx-auto text-gray-400 mb-3" />
+              <p className="text-gray-500 font-medium">No holdings yet</p>
+              <p className="text-gray-400 text-sm mt-1">Start trading to see your portfolio</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {holdings.map((holding, index) => (
-                <div key={index} className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex justify-between items-start mb-2">
+                <div key={index} className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200 bg-white">
+                  <div className="flex justify-between items-start mb-3">
                     <div>
-                      <p className="font-semibold text-gray-800">{holding.symbol}</p>
-                      <p className="text-xs text-gray-600">{holding.exchange}</p>
+                      <p className="font-bold text-gray-900 text-lg tracking-tight">{holding.symbol}</p>
+                      <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">{holding.exchange}</p>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(holding.risk_level)}`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getRiskColor(holding.risk_level)}`}>
                       {holding.risk_level}
                     </span>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <span className="text-gray-700 font-medium">Qty: </span>
-                      <span className="text-gray-900">{holding.quantity}</span>
+                      <span className="text-gray-600 font-semibold text-xs uppercase tracking-wide">Qty: </span>
+                      <span className="text-gray-900 font-bold block text-base">{holding.quantity}</span>
                     </div>
                     <div>
-                      <span className="text-gray-700 font-medium">Avg: </span>
-                      <span className="text-gray-900">₹{holding.average_price.toFixed(2)}</span>
+                      <span className="text-gray-600 font-semibold text-xs uppercase tracking-wide">Avg: </span>
+                      <span className="text-gray-900 font-bold block text-base">₹{holding.average_price.toFixed(2)}</span>
                     </div>
                     <div>
-                      <span className="text-gray-700 font-medium">Current: </span>
-                      <span className="text-gray-900">₹{holding.current_price.toFixed(2)}</span>
+                      <span className="text-gray-600 font-semibold text-xs uppercase tracking-wide">Current: </span>
+                      <span className="text-gray-900 font-bold block text-base">₹{holding.current_price.toFixed(2)}</span>
                     </div>
                     <div>
-                      <span className="text-gray-700 font-medium">P&L: </span>
-                      <span className={holding.profit_loss >= 0 ? "text-green-600 font-bold" : "text-red-600 font-bold"}>
+                      <span className="text-gray-600 font-semibold text-xs uppercase tracking-wide">P&L: </span>
+                      <span className={holding.profit_loss >= 0 ? "text-green-600 font-bold block text-base" : "text-red-600 font-bold block text-base"}>
                         ₹{holding.profit_loss.toFixed(2)}
                       </span>
                     </div>
@@ -213,13 +220,13 @@ export default function TopNavbar() {
           )}
         </div>
         
-        <div className="border-t border-gray-200 p-3 bg-gray-50">
+        <div className="border-t border-gray-200 p-4 bg-gray-50">
           <button 
             onClick={handleViewPortfolio}
-            className="w-full text-white py-2 px-4 rounded hover:opacity-90 transition-colors text-sm font-medium"
+            className="w-full text-white py-3 px-4 rounded-lg hover:opacity-90 transition-all duration-200 text-sm font-bold tracking-wide shadow-lg hover:shadow-xl"
             style={{ backgroundColor: primaryColor }}
           >
-            View Full Portfolio
+            View Full Portfolio Dashboard
           </button>
         </div>
       </div>
@@ -228,50 +235,74 @@ export default function TopNavbar() {
 
   return (
     <div 
-      className="w-full text-white px-6 py-3 flex justify-between items-center shadow-md border-b sticky top-0 z-50"
+      className="w-full text-white px-8 py-4 flex justify-between items-center shadow-lg border-b border-blue-400 sticky top-0 z-50"
       style={{ backgroundColor: primaryColor }}
     >
       {/* Left Logo and Brand */}
       <div className="flex items-center gap-4">
         <div className="relative">
-          <img
-            src={logo}
-            alt="VR Algo Trading Logo"
-            className="h-12 w-auto rounded-full border-2 border-white shadow"
-          />
-          <div className="absolute -bottom-1 -right-1 h-4 w-4 bg-green-500 rounded-full border-2 border-white"></div>
+          <div className="relative group">
+            <img
+              src={logo}
+              alt="VR Algo Trading Logo"
+              className="h-14 w-auto rounded-2xl border-3 border-white/80 shadow-2xl transition-transform group-hover:scale-105"
+            />
+            <div className="absolute -bottom-1 -right-1 h-5 w-5 bg-green-500 rounded-full border-3 border-white shadow-lg"></div>
+          </div>
         </div>
         
         <div className="hidden md:block">
-          <h2 className="font-bold text-xl text-white">
+          <h2 className="font-extrabold text-2xl tracking-tight text-white drop-shadow-sm">
             VR ALGO TRADING
           </h2>
-          <p className="text-xs text-blue-100">Next Generation Trading Platform</p>
+          <p className="text-blue-100 text-sm font-semibold tracking-wide mt-1">Next Generation Trading Platform</p>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="flex-1 max-w-2xl mx-8">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-blue-200" size={20} />
+          <input
+            type="text"
+            placeholder="Search stocks, algorithms, or strategies..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/30 transition-all duration-200 font-medium"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery("")}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-blue-200 hover:text-white transition-colors"
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
 
       {/* Right User Section */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
 
         {/* Orders Button */}
         <button
           onClick={handleOrders}
-          className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded transition-colors border border-white/30"
+          className="flex items-center gap-3 px-5 py-3 bg-white/15 hover:bg-white/25 text-white rounded-xl transition-all duration-200 border border-white/20 hover:border-white/30 hover:shadow-lg backdrop-blur-sm group"
         >
-          <FileText size={18} />
-          <span className="hidden sm:block">My Orders</span>
+          <FileText size={20} className="group-hover:scale-110 transition-transform" />
+          <span className="hidden sm:block font-semibold text-sm tracking-wide">My Orders</span>
         </button>
 
         {/* My Holdings Button */}
         <div className="relative" ref={holdingsRef}>
           <button
             onClick={handleHoldingsClick}
-            className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded transition-colors border border-white/30 relative group"
+            className="flex items-center gap-3 px-5 py-3 bg-white/15 hover:bg-white/25 text-white rounded-xl transition-all duration-200 border border-white/20 hover:border-white/30 hover:shadow-lg backdrop-blur-sm group relative"
           >
-            <Wallet size={18} />
-            <span className="hidden sm:block">My Holdings</span>
+            <TrendingUp size={20} className="group-hover:scale-110 transition-transform" />
+            <span className="hidden sm:block font-semibold text-sm tracking-wide">My Holdings</span>
             {holdings.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              <span className="absolute -top-2 -right-2 bg-green-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center shadow-lg border border-white">
                 {holdings.length}
               </span>
             )}
@@ -284,38 +315,49 @@ export default function TopNavbar() {
         <div className="relative" ref={notificationsRef}>
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
-            className="p-2 hover:bg-white/20 rounded transition-colors relative text-white border border-transparent hover:border-white/30"
+            className="p-3 hover:bg-white/20 rounded-xl transition-all duration-200 relative text-white border border-transparent hover:border-white/30 hover:shadow-lg backdrop-blur-sm group"
           >
-            <Bell size={20} />
+            <Bell size={22} className="group-hover:scale-110 transition-transform" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center shadow-lg border border-white">
                 {unreadCount}
               </span>
             )}
           </button>
 
           {notificationsOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-300 rounded-lg shadow-lg z-50">
+            <div className="absolute right-0 top-full mt-3 w-96 bg-white border border-gray-300 rounded-xl shadow-2xl z-50">
               <div 
-                className="p-4 text-white"
+                className="p-5 text-white"
                 style={{ backgroundColor: primaryColor }}
               >
-                <h3 className="font-semibold">Notifications</h3>
-                <p className="text-sm text-blue-100">{unreadCount} unread</p>
+                <div className="flex items-center gap-3">
+                  <Bell size={20} className="text-white" />
+                  <div>
+                    <h3 className="font-bold text-lg tracking-tight">Notifications</h3>
+                    <p className="text-blue-100 text-sm font-medium">{unreadCount} unread message{unreadCount !== 1 ? 's' : ''}</p>
+                  </div>
+                </div>
               </div>
               
               <div className="max-h-64 overflow-y-auto">
                 {notifications.map((notification) => (
-                  <div key={notification.id} className={`p-3 border-b border-gray-200 ${!notification.read ? 'bg-blue-50' : ''}`}>
-                    <p className="text-sm text-gray-800">{notification.text}</p>
-                    <p className="text-xs text-gray-500 mt-1">{notification.time}</p>
+                  <div 
+                    key={notification.id} 
+                    className={`p-4 border-b border-gray-200 transition-all duration-200 ${
+                      !notification.read ? 'bg-blue-50 border-l-4' : 'border-l-4 border-l-transparent'
+                    }`}
+                    style={{ borderLeftColor: !notification.read ? primaryColor : 'transparent' }}
+                  >
+                    <p className="text-sm text-gray-800 font-medium">{notification.text}</p>
+                    <p className="text-xs text-gray-500 mt-2 font-medium">{notification.time}</p>
                   </div>
                 ))}
               </div>
               
-              <div className="p-3 border-t border-gray-200">
+              <div className="p-4 border-t border-gray-200 bg-gray-50">
                 <button 
-                  className="w-full text-center text-sm hover:text-blue-800"
+                  className="w-full text-center text-sm font-semibold hover:text-blue-800 transition-colors duration-200"
                   style={{ color: primaryColor }}
                 >
                   Mark all as read
@@ -326,10 +368,10 @@ export default function TopNavbar() {
         </div>
 
         {/* User Profile */}
-        <div className="relative flex items-center gap-2" ref={dropdownRef}>
+        <div className="relative flex items-center gap-4" ref={dropdownRef}>
           <div className="hidden md:block text-right">
-            <p className="text-sm font-medium">Welcome, <span className="text-blue-100">{user.username}</span></p>
-            <p className="text-xs text-blue-100">{user.email}</p>
+            <p className="text-sm font-semibold tracking-wide">Welcome, <span className="text-blue-100">{user.username}</span></p>
+            <p className="text-xs text-blue-100 font-medium">{user.email}</p>
           </div>
           
           <div 
@@ -339,46 +381,52 @@ export default function TopNavbar() {
             <img
               src={userAvatar}
               alt="User profile"
-              className="h-10 w-10 rounded-full border-2 border-white shadow group-hover:border-blue-100 transition-colors"
+              className="h-12 w-12 rounded-2xl border-3 border-white/80 shadow-xl group-hover:border-blue-200 transition-all duration-200 group-hover:scale-105"
             />
             <div 
-              className="absolute -bottom-1 -right-1 rounded-full p-1"
+              className="absolute -bottom-1 -right-1 rounded-full p-1 shadow-lg border border-white"
               style={{ backgroundColor: primaryColor }}
             >
-              <ChevronDown size={12} className={`text-white transition-transform ${open ? 'rotate-180' : ''}`} />
+              <ChevronDown 
+                size={14} 
+                className={`text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`} 
+              />
             </div>
           </div>
 
-          {/* Dropdown Menu */}
+          {/* Enhanced Dropdown Menu */}
           {open && (
-            <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden z-50">
+            <div className="absolute right-0 top-full mt-3 w-64 bg-white border border-gray-300 rounded-xl shadow-2xl overflow-hidden z-50">
               <div 
-                className="p-4 text-white"
+                className="p-5 text-white"
                 style={{ backgroundColor: primaryColor }}
               >
-                <p className="font-semibold truncate">{user.username}</p>
-                <p className="text-sm text-blue-100 truncate">{user.email}</p>
+                <p className="font-bold text-lg tracking-tight truncate">{user.username}</p>
+                <p className="text-sm text-blue-100 font-medium truncate">{user.email}</p>
               </div>
               
               <div className="p-2">
-                <button onClick={handleProfile} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded transition-colors">
-                  <User size={16} />
+                <button 
+                  onClick={handleProfile} 
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-all duration-200 font-semibold group"
+                >
+                  <User size={18} className="text-gray-500 group-hover:text-blue-600 transition-colors" />
                   <span>Profile</span>
                 </button>
-                <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 rounded transition-colors">
-                  <Settings size={16} />
+                <button className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 rounded-lg transition-all duration-200 font-semibold group">
+                  <Settings size={18} className="text-gray-500 group-hover:text-blue-600 transition-colors" />
                   <span>Settings</span>
                 </button>
               </div>
               
-              <div className="border-t border-gray-200"></div>
+              <div className="border-t border-gray-200 mx-3"></div>
               
               <div className="p-2">
                 <button
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 font-semibold group"
                   onClick={handleLogout}
                 >
-                  <LogOut size={16} />
+                  <LogOut size={18} className="group-hover:scale-110 transition-transform" />
                   <span>Logout</span>
                 </button>
               </div>

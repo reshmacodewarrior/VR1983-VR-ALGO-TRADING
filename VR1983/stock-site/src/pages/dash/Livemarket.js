@@ -4,7 +4,6 @@ import SingleStock from "../../components/SingleStock";
 import SearchQueue from "../../components/SearchQueue";
 import Header from "../../components/Header";
 import { FaSync, FaRobot, FaChartLine, FaDatabase, FaSignOutAlt } from "react-icons/fa";
-import OrderViewPanel from "../../components/OrderViewPanel";
 
 function LiveMarket() {
   const [currentView, setCurrentView] = useState("single");
@@ -13,14 +12,10 @@ function LiveMarket() {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  
-  // Order View Panel State
-  const [orderViewData, setOrderViewData] = useState([]);
-  const [orderViewLoading, setOrderViewLoading] = useState(true);
-  const [orderViewError, setOrderViewError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const API_BASE_URL = "http://192.168.1.58:8000";
+  // Primary color for the theme
+  const primaryColor = "#42a5f5";
 
   // Check authentication status
   useEffect(() => {
@@ -28,71 +23,19 @@ function LiveMarket() {
     const user = localStorage.getItem("user");
     
     if (!token || !user) {
-      // Redirect to login if not authenticated
       window.location.href = "/login";
     } else {
       setIsAuthenticated(true);
-      // Fetch initial data
-      fetchOrderViewData();
     }
   }, []);
-
-  // Fetch order view data
-  const fetchOrderViewData = useCallback(async () => {
-    try {
-      setOrderViewLoading(true);
-      setOrderViewError(null);
-      
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("No authentication token found");
-      }
-      
-      const response = await fetch(`${API_BASE_URL}/api/order-view-panel`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
-        // Token expired or invalid
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setOrderViewData(data);
-    } catch (err) {
-      console.error("Error fetching order view:", err);
-      setOrderViewError(err.message);
-      
-      if (err.message.includes("401") || err.message.includes("token")) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
-      }
-    } finally {
-      setOrderViewLoading(false);
-    }
-  }, [API_BASE_URL]);
 
   // Global refresh function
   const refreshAllData = useCallback(async () => {
     setIsRefreshing(true);
     
     try {
-      // Refresh order view data
-      await fetchOrderViewData();
-      
       // Trigger refresh for all child components
       setRefreshTrigger(prev => prev + 1);
-      
       // Update last refresh time
       setLastUpdated(new Date());
     } catch (error) {
@@ -100,14 +43,14 @@ function LiveMarket() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchOrderViewData]);
+  }, []);
 
   // Auto-refresh data every 5 minutes
   useEffect(() => {
     if (isAuthenticated) {
       const intervalId = setInterval(() => {
         refreshAllData();
-      }, 5 * 60 * 1000); // 5 minutes
+      }, 5 * 60 * 1000);
       
       return () => clearInterval(intervalId);
     }
@@ -130,7 +73,6 @@ function LiveMarket() {
     switch (currentView) {
       case "single":
         return <SingleStock {...commonProps} />;
-  
       case "queue":
         return <SearchQueue {...commonProps} />;
       default:
@@ -142,15 +84,15 @@ function LiveMarket() {
   const getViewStats = () => {
     switch (currentView) {
       case "single":
-        return { icon: <FaChartLine className="text-cyan-400" />, name: "Single Analysis", desc: "" };
+        return { icon: <FaChartLine style={{ color: primaryColor }} />, name: "Single Analysis", desc: "" };
       case "bulk":
-        return { icon: <FaDatabase className="text-purple-400" />, name: "Bulk Viewer", desc: "Compare multiple stocks at once" };
+        return { icon: <FaDatabase style={{ color: "#9333ea" }} />, name: "Bulk Viewer", desc: "Compare multiple stocks at once" };
       case "indian":
-        return { icon: <FaChartLine className="text-green-400" />, name: "Indian Stocks", desc: "Top performing Indian market stocks" };
+        return { icon: <FaChartLine style={{ color: "#16a34a" }} />, name: "Indian Stocks", desc: "Top performing Indian market stocks" };
       case "queue":
-        return { icon: <FaRobot className="text-blue-400" />, name: "Search Queue", desc: "Quick search and analysis queue" };
+        return { icon: <FaRobot style={{ color: "#4f46e5" }} />, name: "Search Queue", desc: "Quick search and analysis queue" };
       default:
-        return { icon: <FaChartLine className="text-cyan-400" />, name: "Single Analysis"};
+        return { icon: <FaChartLine style={{ color: primaryColor }} />, name: "Single Analysis" };
     }
   };
 
@@ -158,21 +100,24 @@ function LiveMarket() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p>Checking authentication...</p>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div 
+            className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
+            style={{ borderColor: primaryColor }}
+          ></div>
+          <p style={{ color: primaryColor }}>Checking authentication...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 to-blue-900 text-white">
+    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-800">
       <Header />
       
-      {/* Navigation - Moved to top position */}
-      <div className="bg-gray-800 border-b border-gray-700 py-2 px-6">
+      {/* Navigation */}
+      <div className="bg-white border-b border-gray-200 py-2 px-6 shadow-sm">
         <div className="container mx-auto">
           <Navigation
             currentView={currentView}
@@ -185,21 +130,27 @@ function LiveMarket() {
         </div>
       </div>
 
-      {/* View Header - Now in the second position with updated styling */}
-      <div className="bg-gradient-to-r from-gray-800 to-blue-800 border-b border-gray-700 py-4 px-6">
+      {/* View Header */}
+      <div className="bg-white border-b border-gray-200 py-4 px-6 shadow-sm">
         <div className="container mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-gray-800 rounded-xl border border-gray-700 shadow-lg">
+            <div 
+              className="p-3 rounded-xl border shadow-lg"
+              style={{
+                backgroundColor: `${primaryColor}10`,
+                borderColor: `${primaryColor}20`
+              }}
+            >
               {viewStats.icon}
             </div>
             <div>
-              <h2 className="text-2xl font-bold">{viewStats.name}</h2>
-              <p className="text-blue-200 text-sm">{viewStats.desc}</p>
+              <h2 className="text-2xl font-bold text-gray-900">{viewStats.name}</h2>
+              <p style={{ color: primaryColor }} className="text-sm">{viewStats.desc}</p>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="hidden md:block text-sm text-gray-400">
+            <div className="hidden md:block text-sm text-gray-500">
               Last updated: {lastUpdated.toLocaleTimeString()}
             </div>
             <button
@@ -207,16 +158,30 @@ function LiveMarket() {
               disabled={isRefreshing}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg transition-all ${
                 isRefreshing 
-                  ? "bg-blue-800 cursor-not-allowed" 
-                  : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500"
+                  ? "bg-gray-400 cursor-not-allowed" 
+                  : "text-white hover:scale-105"
               }`}
+              style={{ backgroundColor: isRefreshing ? undefined : primaryColor }}
+              onMouseEnter={(e) => {
+                if (!isRefreshing) e.target.style.backgroundColor = '#1e88e5';
+              }}
+              onMouseLeave={(e) => {
+                if (!isRefreshing) e.target.style.backgroundColor = primaryColor;
+              }}
             >
               <FaSync className={`${isRefreshing ? "animate-spin" : ""}`} />
               {isRefreshing ? "Refreshing..." : "Refresh All"}
             </button>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg bg-red-600 hover:bg-red-500 transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg text-white hover:scale-105 transition-all"
+              style={{ backgroundColor: '#dc2626' }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = '#b91c1c';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = '#dc2626';
+              }}
               title="Logout"
             >
               <FaSignOutAlt />
@@ -227,32 +192,30 @@ function LiveMarket() {
 
       {/* Main content */}
       <main className="flex-1 container mx-auto px-4 py-6">
-        <div className="bg-gradient-to-br from-gray-800 to-blue-900 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
           {renderView()}
         </div>
-        
-       
       </main>
 
       {/* Market Status Bar */}
-      <div className="bg-gray-800 border-t border-b border-gray-700 py-2 px-6">
+      <div className="bg-white border-t border-b border-gray-200 py-2 px-6 shadow-sm">
         <div className="container mx-auto">
           <div className="flex flex-wrap items-center justify-between gap-4 text-sm">
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span>NASDAQ: <span className="text-green-400 font-medium">+1.2%</span></span>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                <span className="text-gray-700">NASDAQ: <span className="text-emerald-600 font-medium">+1.2%</span></span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
-                <span>NSE: <span className="text-red-400 font-medium">-0.8%</span></span>
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                <span className="text-gray-700">NSE: <span className="text-red-600 font-medium">-0.8%</span></span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span>Crypto: <span className="text-green-400 font-medium">+3.5%</span></span>
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                <span className="text-gray-700">Crypto: <span className="text-emerald-600 font-medium">+3.5%</span></span>
               </div>
             </div>
-            <div className="text-blue-300">
+            <div style={{ color: primaryColor }} className="font-medium">
               Auto-refresh in 5 min • Real-time data • Algorithmic trading
             </div>
           </div>
@@ -260,8 +223,8 @@ function LiveMarket() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 border-t border-gray-800 py-4 px-6">
-        <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
+      <footer className="bg-white border-t border-gray-200 py-4 px-6 shadow-sm">
+        <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-600">
           <div className="flex items-center gap-6">
             <span>VR Algo Trading Platform v2.1</span>
             <span>•</span>
@@ -271,7 +234,8 @@ function LiveMarket() {
             <span>Last updated: {lastUpdated.toLocaleTimeString()}</span>
             <button
               onClick={refreshAllData}
-              className="text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+              className="flex items-center gap-1 hover:scale-105 transition-transform"
+              style={{ color: primaryColor }}
             >
               <FaSync className="text-sm" />
               Refresh
@@ -284,7 +248,14 @@ function LiveMarket() {
       <button
         onClick={refreshAllData}
         disabled={isRefreshing}
-        className="fixed bottom-6 right-6 md:hidden z-10 p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-2xl hover:from-blue-500 hover:to-purple-500 transition-all"
+        className="fixed bottom-6 right-6 md:hidden z-10 p-4 text-white rounded-full shadow-2xl hover:scale-105 transition-all"
+        style={{ backgroundColor: primaryColor }}
+        onMouseEnter={(e) => {
+          if (!isRefreshing) e.target.style.backgroundColor = '#1e88e5';
+        }}
+        onMouseLeave={(e) => {
+          if (!isRefreshing) e.target.style.backgroundColor = primaryColor;
+        }}
       >
         <FaSync className={isRefreshing ? "animate-spin" : ""} />
       </button>

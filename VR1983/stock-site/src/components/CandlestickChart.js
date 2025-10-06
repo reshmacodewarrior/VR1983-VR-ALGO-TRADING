@@ -20,13 +20,15 @@ const CandlestickChart = ({ data, symbol }) => {
   const [currentSignal, setCurrentSignal] = useState(null);
   const [executingOrder, setExecutingOrder] = useState(null);
 
+  // Primary color for the theme
+  const primaryColor = "#42a5f5";
+
   // ✅ Track executed auto-trades by stock + signal time
   const [autoTradeTracker, setAutoTradeTracker] = useState({});
 
   // -------------------------------
   // Helpers
   // -------------------------------
-  
 
   // -------------------------------
   // Manual Orders
@@ -144,38 +146,39 @@ const CandlestickChart = ({ data, symbol }) => {
     },
     [data, symbol, quantity, autoTradeTracker]
   );
-  const recordTransaction = (orderData, type, mode, result, fallbackPrice) => {
-  // ✅ Use backend-executed price if available
-  const executedPrice =
-    result?.executed_price ??   // backend price
-    orderData?.average_price ?? // manual/fallback
-    orderData?.price ??
-    orderData?.order_price ??
-    fallbackPrice ??
-    0;
 
-  const newTransaction = {
-    type,
-    price: executedPrice,
-    time:
-      result?.timestamp ||
-      new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
-    symbol,
-    orderData: {
-      ...orderData,
-      executed_at:
+  const recordTransaction = (orderData, type, mode, result, fallbackPrice) => {
+    // ✅ Use backend-executed price if available
+    const executedPrice =
+      result?.executed_price ??   // backend price
+      orderData?.average_price ?? // manual/fallback
+      orderData?.price ??
+      orderData?.order_price ??
+      fallbackPrice ??
+      0;
+
+    const newTransaction = {
+      type,
+      price: executedPrice,
+      time:
         result?.timestamp ||
         new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
-      executed_price: executedPrice, // ✅ store exact backend price
-    },
-    mode,
-  };
+      symbol,
+      orderData: {
+        ...orderData,
+        executed_at:
+          result?.timestamp ||
+          new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+        executed_price: executedPrice, // ✅ store exact backend price
+      },
+      mode,
+    };
 
-  setTransactionHistory((prev) => [...prev, newTransaction]);
-  setCelebrate(
-    `✅ ${mode.toUpperCase()} ${type} executed: ${orderData.quantity} Qty ${symbol} @ ₹${executedPrice}`
-  );
-};
+    setTransactionHistory((prev) => [...prev, newTransaction]);
+    setCelebrate(
+      `✅ ${mode.toUpperCase()} ${type} executed: ${orderData.quantity} Qty ${symbol} @ ₹${executedPrice}`
+    );
+  };
 
   // -------------------------------
   // Signal Fetch
@@ -218,10 +221,16 @@ const CandlestickChart = ({ data, symbol }) => {
   // -------------------------------
   if (!data?.length) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 bg-gradient-to-br from-gray-900 to-blue-900 text-gray-300 rounded-xl shadow-2xl p-6">
+      <div 
+        className="flex flex-col items-center justify-center h-96 text-gray-600 rounded-xl shadow-lg p-6 border"
+        style={{
+          backgroundColor: 'white',
+          borderColor: `${primaryColor}20`
+        }}
+      >
         <div className="text-6xl mb-4">📊</div>
         <h3 className="text-xl font-semibold mb-2">No chart data available</h3>
-        <p className="text-blue-300">Select a different symbol or timeframe</p>
+        <p style={{ color: primaryColor }}>Select a different symbol or timeframe</p>
       </div>
     );
   }
@@ -255,7 +264,13 @@ const CandlestickChart = ({ data, symbol }) => {
         };
 
   return (
-    <div className="w-full bg-gradient-to-br from-gray-900 to-blue-900 shadow-2xl rounded-xl p-4 border border-gray-700">
+    <div 
+      className="w-full shadow-lg rounded-xl p-4 border"
+      style={{
+        backgroundColor: 'white',
+        borderColor: `${primaryColor}20`
+      }}
+    >
       <Celebration trigger={celebrate} />   {/* 🎉 popup here */}
       <TradingModeToggle
         symbol={symbol}
@@ -265,13 +280,19 @@ const CandlestickChart = ({ data, symbol }) => {
 
       {/* ✅ Quantity Selector */}
       <div className="flex items-center gap-2 mb-4">
-        <label className="text-gray-300">Qty:</label>
+        <label style={{ color: primaryColor }}>Qty:</label>
         <input
           type="number"
           min="1"
           value={quantity}
           onChange={(e) => setQuantity(Number(e.target.value))}
-          className="w-20 px-2 py-1 rounded bg-gray-800 text-white border border-gray-600"
+          className="w-20 px-2 py-1 rounded border transition-colors"
+          style={{
+            backgroundColor: 'white',
+            color: '#1f2937',
+            borderColor: `${primaryColor}40`,
+            focusBorderColor: primaryColor
+          }}
         />
       </div>
 
@@ -301,17 +322,29 @@ const CandlestickChart = ({ data, symbol }) => {
 
       <PriceSummary opens={opens} highs={highs} lows={lows} closes={closes} />
 
-      <div className="border border-gray-700 rounded-xl overflow-hidden">
+      <div 
+        className="rounded-xl overflow-hidden border"
+        style={{ borderColor: `${primaryColor}20` }}
+      >
         <Plot
           data={[priceTrace]}
           layout={{
             dragmode: "zoom",
             margin: { t: 25, r: 25, b: 40, l: 60 },
-            paper_bgcolor: "#0f172a",
-            plot_bgcolor: "#0f172a",
-            font: { color: "#f1f5f9" },
-            xaxis: { type: "date", rangeslider: { visible: false } },
-            yaxis: { autorange: true },
+            paper_bgcolor: "white",
+            plot_bgcolor: "white",
+            font: { color: "#374151" },
+            xaxis: { 
+              type: "date", 
+              rangeslider: { visible: false },
+              gridcolor: `${primaryColor}10`,
+              linecolor: `${primaryColor}30`
+            },
+            yaxis: { 
+              autorange: true,
+              gridcolor: `${primaryColor}10`,
+              linecolor: `${primaryColor}30`
+            },
           }}
           style={{ width: "100%", height: "500px" }}
           config={{ responsive: true }}

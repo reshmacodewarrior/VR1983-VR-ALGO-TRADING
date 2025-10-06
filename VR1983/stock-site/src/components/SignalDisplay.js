@@ -11,15 +11,23 @@ const SignalDisplay = ({
   handleBuy,
   handleSell,
   autoTradeCount,
+  primaryColor = "#42a5f5"
 }) => {
   return (
-    <div className="mb-4 p-3 rounded-lg bg-gray-800 text-gray-200">
+    <div 
+      className="mb-4 p-3 rounded-lg border"
+      style={{ 
+        backgroundColor: `${primaryColor}05`,
+        borderColor: `${primaryColor}20`,
+        color: primaryColor
+      }}
+    >
       {executingOrder ? (
         <p>
           ⚡ {executingOrder.message} at ₹{executingOrder.price}
         </p>
       ) : holdSignal ? (
-        <p className="flex items-center gap-2 text-yellow-400">
+        <p className="flex items-center gap-2" style={{ color: primaryColor }}>
           <Bell size={18} /> HOLD Signal Active — No trades executed
         </p>
       ) : currentSignal ? (
@@ -28,10 +36,10 @@ const SignalDisplay = ({
           <span
             className={
               currentSignal.signal === "BUY"
-                ? "text-green-400"
+                ? "text-green-600"
                 : currentSignal.signal === "SELL"
-                ? "text-red-400"
-                : "text-yellow-400"
+                ? "text-red-600"
+                : `text-[${primaryColor}]`
             }
           >
             {currentSignal.signal}
@@ -45,13 +53,27 @@ const SignalDisplay = ({
         <div className="flex gap-2 mt-2">
           <button
             onClick={handleBuy}
-            className="bg-green-600 px-3 py-1 rounded hover:bg-green-700"
+            className="px-3 py-1 rounded hover:scale-105 transition-all text-white font-medium"
+            style={{ backgroundColor: primaryColor }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#1e88e5';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = primaryColor;
+            }}
           >
             BUY
           </button>
           <button
             onClick={handleSell}
-            className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
+            className="px-3 py-1 rounded hover:scale-105 transition-all text-white font-medium"
+            style={{ backgroundColor: primaryColor }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#1e88e5';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = primaryColor;
+            }}
           >
             SELL
           </button>
@@ -59,8 +81,8 @@ const SignalDisplay = ({
       )}
 
       {tradingMode === "auto" && (
-        <p className="text-sm text-gray-400 mt-2">
-           Auto trading active (Executed {autoTradeCount} trades)
+        <p className="text-sm mt-2" style={{ color: `${primaryColor}80` }}>
+          🤖 Auto trading active (Executed {autoTradeCount} trades)
         </p>
       )}
     </div>

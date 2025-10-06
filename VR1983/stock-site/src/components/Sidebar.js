@@ -5,6 +5,7 @@ import {
   FaUser,
   FaSignOutAlt,
   FaBars,
+  FaChevronRight,
 } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -17,7 +18,7 @@ export default function SideNavbar() {
   const location = useLocation();
   const { setAuth } = useAuth();
 
-  // Primary color
+  // Primary color - Same as original
   const primaryColor = "#42a5f5";
 
   const menuItems = [
@@ -64,14 +65,14 @@ export default function SideNavbar() {
 
   return (
     <div
-      className={`flex flex-col bg-white text-gray-800 p-5 transition-all duration-300 relative ${
-        isOpen ? "w-64" : "w-20"
-      } shadow-lg border-r border-gray-200`}
+      className={`flex flex-col bg-white text-gray-800 p-6 transition-all duration-300 relative ${
+        isOpen ? "w-72" : "w-20"
+      } shadow-xl border-r border-gray-200`}
     >
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="absolute -right-3 top-6 text-white p-2 rounded-full focus:outline-none z-10 shadow-lg hover:scale-110 transition-all duration-300 border"
+        className="absolute -right-3 top-8 text-white p-2 rounded-full focus:outline-none z-10 shadow-lg hover:scale-110 transition-all duration-300 border"
         style={{
           backgroundColor: primaryColor,
           borderColor: primaryColor,
@@ -80,30 +81,33 @@ export default function SideNavbar() {
         <FaBars className="text-sm" />
       </button>
 
-      {/* Logo */}
-      <div className="flex items-center mb-8 mt-2">
+      {/* Logo Section */}
+      <div className="flex items-center mb-10 mt-2">
         <div
           onClick={() => navigate("/home")}
           className="cursor-pointer flex items-center gap-3 transition-transform hover:scale-105 duration-300"
         >
-          {isOpen && (
-            <div className="flex flex-col">
-              <h1 
-                className="text-xl font-bold"
-                style={{ color: primaryColor }}
-              >
-                VR ALGO TRADING
-              </h1>
-              <p className="text-xs text-gray-500 mt-1">
-                Next Generation Trading Platform
-              </p>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+          
+            {isOpen && (
+              <div className="flex flex-col">
+                <h1 
+                  className="text-2xl font-extrabold tracking-tight"
+                  style={{ color: primaryColor }}
+                >
+                  VR ALGO TRADING
+                </h1>
+                <p className="text-xs text-gray-500 mt-1 font-medium tracking-wide">
+                  Next Generation Trading Platform
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Main Menu */}
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-2">
         {menuItems.map((item) => {
           const isActive = location.pathname === item.path;
           const isHovered = activeHover === item.name;
@@ -115,20 +119,20 @@ export default function SideNavbar() {
               onMouseEnter={() => handleMouseEnter(item.name)}
               onMouseLeave={handleMouseLeave}
               className={`flex items-center ${
-                isOpen ? "gap-3 px-4" : "justify-center"
-              } w-full py-3 rounded-lg transition-all duration-200 relative group ${
+                isOpen ? "gap-4 px-4" : "justify-center"
+              } w-full py-3 rounded-xl transition-all duration-200 relative group ${
                 isActive
-                  ? "text-white shadow-md"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  ? "text-white shadow-lg transform scale-105"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50 hover:shadow-md"
               }`}
               style={{
                 backgroundColor: isActive ? primaryColor : "",
               }}
             >
               <div
-                className={`transition-transform duration-200 ${
+                className={`transition-all duration-200 ${
                   isHovered || isActive ? "scale-110" : "scale-100"
-                }`}
+                } ${isActive ? "text-white" : ""}`}
                 style={{
                   color: isActive ? "white" : primaryColor,
                 }}
@@ -137,21 +141,30 @@ export default function SideNavbar() {
               </div>
 
               {isOpen && (
-                <span className="font-medium">
-                  {item.name}
-                </span>
+                <div className="flex items-center justify-between flex-1">
+                  <span className="font-semibold text-sm tracking-wide">
+                    {item.name}
+                  </span>
+                  {(isHovered || isActive) && (
+                    <FaChevronRight className="text-xs opacity-70" />
+                  )}
+                </div>
               )}
 
-              {/* Tooltip for collapsed state */}
+              {/* Enhanced Tooltip for collapsed state */}
               {!isOpen && (
                 <div 
-                  className="absolute left-full ml-3 px-2 py-1 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-20 border"
+                  className="absolute left-full ml-4 px-3 py-2 text-white text-sm font-medium rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap z-20 border"
                   style={{
                     backgroundColor: primaryColor,
                     borderColor: primaryColor,
                   }}
                 >
                   {item.name}
+                  <div 
+                    className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 rotate-45"
+                    style={{ backgroundColor: primaryColor }}
+                  ></div>
                 </div>
               )}
             </button>
@@ -160,12 +173,15 @@ export default function SideNavbar() {
       </nav>
 
       {/* Divider */}
-      {isOpen && <div className="border-t border-gray-200 my-4"></div>}
+      {isOpen && (
+        <div className="my-6">
+          <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+        </div>
+      )}
 
       {/* Bottom Menu */}
-      <nav className="space-y-1">
+      <nav className="space-y-2">
         {bottomMenuItems.map((item) => {
-          const isActive = location.pathname === item.path;
           const isHovered = activeHover === item.name;
 
           return (
@@ -175,27 +191,28 @@ export default function SideNavbar() {
               onMouseEnter={() => handleMouseEnter(item.name)}
               onMouseLeave={handleMouseLeave}
               className={`flex items-center ${
-                isOpen ? "gap-3 px-4" : "justify-center"
-              } w-full py-3 rounded-lg transition-all duration-200 group text-red-500 hover:bg-red-50 hover:text-red-700`}
+                isOpen ? "gap-4 px-4" : "justify-center"
+              } w-full py-3 rounded-xl transition-all duration-200 group text-red-500 hover:bg-red-50 hover:text-red-700 border border-red-100 hover:border-red-200`}
             >
               <div
                 className={`transition-transform duration-200 ${
-                  isHovered || isActive ? "scale-110" : "scale-100"
+                  isHovered ? "scale-110" : "scale-100"
                 }`}
               >
                 {item.icon}
               </div>
 
               {isOpen && (
-                <span>
+                <span className="font-semibold text-sm tracking-wide">
                   {item.name}
                 </span>
               )}
 
-              {/* Tooltip for collapsed state */}
+              {/* Enhanced Tooltip for collapsed state */}
               {!isOpen && (
-                <div className="absolute left-full ml-3 px-2 py-1 bg-red-500 text-white text-sm rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-20 border border-red-500">
+                <div className="absolute left-full ml-4 px-3 py-2 bg-red-500 text-white text-sm font-medium rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap z-20 border border-red-500">
                   {item.name}
+                  <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-red-500 rotate-45"></div>
                 </div>
               )}
             </button>
@@ -203,12 +220,12 @@ export default function SideNavbar() {
         })}
       </nav>
 
-      {/* User Info Footer */}
+      {/* Enhanced User Info Footer */}
       {isOpen && (
-        <div className="mt-6 pt-4 border-t border-gray-200">
-          <div className="flex items-center gap-3">
+        <div className="mt-8 pt-6 border-t border-gray-300">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
             <div 
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow"
+              className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold shadow-lg text-lg"
               style={{ backgroundColor: primaryColor }}
             >
               {localStorage.getItem("user")
@@ -218,12 +235,12 @@ export default function SideNavbar() {
                 : "G"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm font-bold text-gray-900 truncate tracking-tight">
                 {localStorage.getItem("user")
                   ? JSON.parse(localStorage.getItem("user")).username
                   : "Guest"}
               </p>
-              <p className="text-xs text-gray-500 truncate">
+              <p className="text-xs text-gray-600 truncate font-medium">
                 {localStorage.getItem("user")
                   ? JSON.parse(localStorage.getItem("user")).email
                   : "guest@example.com"}

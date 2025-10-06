@@ -11,6 +11,9 @@ function OrdersPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const navigate = useNavigate();
 
+  // Primary color for the theme
+  const primaryColor = "#42a5f5";
+
   const API_BASE_URL = process.env.REACT_APP_API_URL || "http://192.168.1.58:8000";
 
   // Fetch order view data
@@ -73,39 +76,59 @@ function OrdersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-blue-900 text-white p-4">
+    <div className="min-h-screen bg-gray-50 text-gray-800 p-4">
       {/* Page Header */}
-      <div className="bg-gradient-to-r from-gray-800 to-blue-800 rounded-xl border border-gray-700 py-4 px-6 mb-6">
+      <div 
+        className="bg-white border rounded-xl py-4 px-6 mb-6 shadow-lg"
+        style={{ borderColor: `${primaryColor}20` }}
+      >
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <button
               onClick={handleHome}
-              className="p-3 bg-gray-800 rounded-xl border border-gray-700 shadow-lg hover:bg-gray-700 transition-all"
+              className="p-3 rounded-xl border shadow-lg hover:scale-105 transition-all"
+              style={{ 
+                backgroundColor: `${primaryColor}10`,
+                borderColor: `${primaryColor}20`
+              }}
               title="Go Home"
             >
-              <FaHome className="text-blue-400" />
+              <FaHome style={{ color: primaryColor }} />
             </button>
-            <div className="p-3 bg-gray-800 rounded-xl border border-gray-700 shadow-lg">
-              <FaSync className="text-green-400" />
+            <div 
+              className="p-3 rounded-xl border shadow-lg"
+              style={{ 
+                backgroundColor: `${primaryColor}10`,
+                borderColor: `${primaryColor}20`
+              }}
+            >
+              <FaSync style={{ color: primaryColor }} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold">My Orders</h2>
-              <p className="text-blue-200 text-sm">View your complete order history and performance</p>
+              <h2 className="text-2xl font-bold text-gray-900">My Orders</h2>
+              <p className="text-sm" style={{ color: primaryColor }}>View your complete order history and performance</p>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="hidden md:block text-sm text-gray-400">
+            <div className="hidden md:block text-sm text-gray-600">
               Last updated: {lastUpdated.toLocaleTimeString()}
             </div>
             <button
               onClick={refreshData}
               disabled={isRefreshing}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg transition-all text-white hover:scale-105 ${
                 isRefreshing 
-                  ? "bg-blue-800 cursor-not-allowed" 
-                  : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500"
+                  ? "bg-gray-400 cursor-not-allowed" 
+                  : ""
               }`}
+              style={{ backgroundColor: isRefreshing ? undefined : primaryColor }}
+              onMouseEnter={(e) => {
+                if (!isRefreshing) e.target.style.backgroundColor = '#1e88e5';
+              }}
+              onMouseLeave={(e) => {
+                if (!isRefreshing) e.target.style.backgroundColor = primaryColor;
+              }}
             >
               <FaSync className={`${isRefreshing ? "animate-spin" : ""}`} />
               {isRefreshing ? "Refreshing..." : "Refresh"}
@@ -120,13 +143,21 @@ function OrdersPage() {
         loading={orderViewLoading}
         error={orderViewError}
         onRefresh={fetchOrderViewData}
+        primaryColor={primaryColor}
       />
 
       {/* Floating Refresh Button for Mobile */}
       <button
         onClick={refreshData}
         disabled={isRefreshing}
-        className="fixed bottom-6 right-6 md:hidden z-10 p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-2xl hover:from-blue-500 hover:to-purple-500 transition-all"
+        className="fixed bottom-6 right-6 md:hidden z-10 p-4 text-white rounded-full shadow-2xl hover:scale-105 transition-all"
+        style={{ backgroundColor: primaryColor }}
+        onMouseEnter={(e) => {
+          if (!isRefreshing) e.target.style.backgroundColor = '#1e88e5';
+        }}
+        onMouseLeave={(e) => {
+          if (!isRefreshing) e.target.style.backgroundColor = primaryColor;
+        }}
       >
         <FaSync className={isRefreshing ? "animate-spin" : ""} />
       </button>

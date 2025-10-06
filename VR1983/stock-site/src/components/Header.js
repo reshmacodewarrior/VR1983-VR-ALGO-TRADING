@@ -28,6 +28,9 @@ const Header = () => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Primary color matching the sidebar
+  const primaryColor = "#42a5f5";
+
   useEffect(() => {
     fetchIndices();
   }, []);
@@ -136,37 +139,43 @@ const Header = () => {
   };
 
   const getChangeColor = (change) => {
-    if (change === null || change === undefined) return "text-gray-400";
-    return change >= 0 ? "text-green-400" : "text-red-400";
+    if (change === null || change === undefined) return "text-gray-600";
+    return change >= 0 ? "text-green-600 font-bold" : "text-red-600 font-bold";
   };
 
   const getChangeIcon = (change) => {
     if (change === null || change === undefined) return null;
     return change >= 0 ? (
-      <FaArrowUp className="inline ml-1 text-green-400" />
+      <FaArrowUp className="inline ml-1 text-green-600 font-bold" />
     ) : (
-      <FaArrowDown className="inline ml-1 text-red-400" />
+      <FaArrowDown className="inline ml-1 text-red-600 font-bold" />
     );
   };
 
   const IndexCard = ({ title, data, indexKey, isIndex = true }) => (
-    <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-lg p-4 text-center border border-white/10 min-w-[180px] hover:bg-white/15 transition-all duration-200">
-      <div className="text-sm text-blue-200 mb-2 font-medium">{title}</div>
+    <div 
+      className="bg-white rounded-xl shadow-lg p-4 text-center border border-gray-200 min-w-[160px] hover:bg-gray-50 transition-all duration-200 hover:scale-105 hover:shadow-xl"
+    >
+      <div 
+        className="text-sm font-bold mb-2 tracking-tight text-gray-700"
+      >
+        {title}
+      </div>
       {data.loading ? (
         <div className="animate-pulse">
-          <div className="h-7 bg-white/20 rounded mb-2 mx-auto w-24"></div>
-          <div className="h-5 bg-white/20 rounded mx-auto w-16"></div>
+          <div className="h-6 bg-gray-300 rounded mb-2 mx-auto w-20"></div>
+          <div className="h-4 bg-gray-300 rounded mx-auto w-16"></div>
         </div>
       ) : (
         <>
-          <div className="text-xl font-bold text-white mb-1">
+          <div className="text-lg font-black text-gray-900 mb-1">
             {formatINR(data.value)}
           </div>
-          <div className={`text-sm font-medium ${getChangeColor(data.change)}`}>
-            <div className="flex items-center justify-center">
+          <div className={`text-xs font-bold ${getChangeColor(data.change)}`}>
+            <div className="flex items-center justify-center gap-1">
               {formatChange(data.change)} {getChangeIcon(data.change)}
             </div>
-            <div className="text-xs mt-1">
+            <div className="text-xs font-semibold mt-1">
               {formatPercent(data.changePercent)}
             </div>
           </div>
@@ -176,21 +185,42 @@ const Header = () => {
   );
 
   return (
-    <header className="bg-gradient-to-r from-blue-900 to-purple-900 text-white shadow-xl py-6 relative overflow-hidden">
-      {/* Animated background elements */}
+    <header 
+      className="text-white shadow-lg py-6 relative overflow-hidden"
+      style={{
+        background: `linear-gradient(135deg, ${primaryColor}20 0%, ${primaryColor}40 100%)`,
+        backdropFilter: 'blur(10px)',
+      }}
+    >
+      {/* Enhanced Animated background elements */}
       <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-0 left-0 w-32 h-32 bg-cyan-400 rounded-full filter blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 right-0 w-40 h-40 bg-purple-500 rounded-full filter blur-3xl animate-pulse delay-1000"></div>
+        <div 
+          className="absolute top-0 left-0 w-32 h-32 rounded-full filter blur-3xl animate-pulse"
+          style={{ backgroundColor: primaryColor }}
+        ></div>
+        <div 
+          className="absolute bottom-0 right-0 w-40 h-40 rounded-full filter blur-3xl animate-pulse delay-1000"
+          style={{ backgroundColor: `${primaryColor}80` }}
+        ></div>
       </div>
 
       <div className="container mx-auto px-6 relative z-10">
-        {/* Title and Refresh Button */}
+        {/* Enhanced Title and Refresh Button */}
         <div className="flex flex-col md:flex-row items-center justify-between mb-6">
           <div className="text-center md:text-left mb-4 md:mb-0">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-400">
+            <h1 
+              className="text-3xl md:text-4xl font-black mb-2 leading-tight drop-shadow-lg"
+              style={{ 
+                color: primaryColor,
+                textShadow: '0 2px 10px rgba(66, 165, 245, 0.3)'
+              }}
+            >
               VR Algo Trading Platform
             </h1>
-            <p className="text-lg text-blue-200">
+            <p 
+              className="text-base font-semibold tracking-tight drop-shadow"
+              style={{ color: `${primaryColor}ee` }}
+            >
               Advanced algorithmic trading with real-time market intelligence
             </p>
           </div>
@@ -198,14 +228,14 @@ const Header = () => {
           <button
             onClick={fetchIndices}
             disabled={isRefreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 hover:bg-white/20 transition-all disabled:opacity-50 hover:scale-105"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-200 disabled:opacity-50 hover:scale-105 shadow-md hover:shadow-lg font-bold bg-white text-gray-800 border-gray-300 hover:bg-gray-50"
           >
             <FaSync className={`${isRefreshing ? "animate-spin" : ""}`} />
             {isRefreshing ? "Updating..." : "Refresh Data"}
           </button>
         </div>
 
-        {/* Market Indices */}
+        {/* Enhanced Market Indices */}
         <div className="flex flex-wrap justify-center gap-4">
           <IndexCard
             title="NIFTY 50"
@@ -231,13 +261,21 @@ const Header = () => {
             indexKey="niftyAuto"
             isIndex={true}
           />
-         
+          <IndexCard
+            title="TATA MOTORS"
+            data={indicesData.tatamotors}
+            indexKey="tatamotors"
+            isIndex={false}
+          />
         </div>
 
-        {/* Last Updated */}
+        {/* Enhanced Last Updated */}
         {lastUpdated && (
-          <div className="text-center mt-4 text-blue-200 text-sm">
-            Last updated: {lastUpdated.toLocaleTimeString('en-IN', { 
+          <div 
+            className="text-center mt-4 text-sm font-semibold tracking-tight drop-shadow"
+            style={{ color: `${primaryColor}ee` }}
+          >
+             Last updated: {lastUpdated.toLocaleTimeString('en-IN', { 
               hour: '2-digit', 
               minute: '2-digit',
               second: '2-digit'

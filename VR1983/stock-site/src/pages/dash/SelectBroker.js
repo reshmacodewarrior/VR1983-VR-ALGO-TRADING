@@ -25,6 +25,9 @@ export default function BrokerAccountForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
 
+  // Primary color for the theme
+  const primaryColor = "#42a5f5";
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -118,15 +121,15 @@ export default function BrokerAccountForm() {
   };
 
   const brokers = [
-    { value: "zerodha", label: "Zerodha", color: "from-blue-600 to-blue-700" },
-    { value: "upstox", label: "Upstox", color: "from-purple-600 to-purple-700" },
-    { value: "angel", label: "Angel One", color: "from-red-600 to-red-700" },
-    { value: "groww", label: "Groww", color: "from-green-600 to-green-700" },
-    { value: "ICICI Direct", label: "ICICI Direct", color: "from-indigo-600 to-indigo-700" },
+    { value: "zerodha", label: "Zerodha" },
+    { value: "upstox", label: "Upstox" },
+    { value: "angel", label: "Angel One" },
+    { value: "groww", label: "Groww" },
+    { value: "ICICI Direct", label: "ICICI Direct" },
   ];
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         {[...Array(15)].map((_, i) => (
@@ -140,39 +143,52 @@ export default function BrokerAccountForm() {
               animationDuration: `${15 + Math.random() * 10}s`
             }}
           >
-            <div className="w-2 h-2 bg-blue-400 rounded-full opacity-20"></div>
+            <div 
+              className="w-2 h-2 rounded-full opacity-20"
+              style={{ backgroundColor: primaryColor }}
+            ></div>
           </div>
         ))}
       </div>
 
       <div className="relative w-full max-w-md">
         {/* Header Card */}
-        <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 backdrop-blur-md border border-white/10 rounded-2xl p-6 mb-6 text-white text-center">
+        <div 
+          className="bg-white border rounded-2xl p-6 mb-6 text-center shadow-lg"
+          style={{ borderColor: `${primaryColor}20` }}
+        >
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-white/10 rounded-xl">
-              <Link2 className="h-8 w-8 text-blue-300" />
+            <div 
+              className="p-3 rounded-xl"
+              style={{ backgroundColor: `${primaryColor}10` }}
+            >
+              <Link2 style={{ color: primaryColor }} className="h-8 w-8" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold mb-2">Connect Broker Account</h1>
-          <p className="text-blue-200 text-sm">
+          <h1 className="text-2xl font-bold mb-2" style={{ color: primaryColor }}>Connect Broker Account</h1>
+          <p className="text-gray-600 text-sm">
             Securely connect your trading account to start algorithmic trading
           </p>
         </div>
 
         {/* Form Card */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/20 p-6">
+        <div className="bg-white rounded-2xl shadow-lg border p-6" style={{ borderColor: `${primaryColor}20` }}>
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Broker Select */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                <Building2 size={16} className="text-blue-600" />
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2" style={{ color: primaryColor }}>
+                <Building2 size={16} />
                 Select Broker
               </label>
               <select
                 name="broker_name"
                 value={formData.broker_name}
                 onChange={handleChange}
-                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all appearance-none bg-white"
+                className="w-full p-3 border rounded-xl focus:ring-2 outline-none transition-colors appearance-none bg-white"
+                style={{
+                  borderColor: `${primaryColor}40`,
+                  focusRingColor: primaryColor
+                }}
                 required
               >
                 <option value="">-- Choose Your Broker --</option>
@@ -186,8 +202,8 @@ export default function BrokerAccountForm() {
 
             {/* API Key */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                <Key size={16} className="text-blue-600" />
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2" style={{ color: primaryColor }}>
+                <Key size={16} />
                 API Key
               </label>
               <div className="relative">
@@ -197,17 +213,21 @@ export default function BrokerAccountForm() {
                   value={formData.api_Key}
                   onChange={handleChange}
                   placeholder="Enter your API Key"
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all pr-10"
+                  className="w-full p-3 border rounded-xl focus:ring-2 outline-none transition-colors pr-10"
+                  style={{
+                    borderColor: `${primaryColor}40`,
+                    focusRingColor: primaryColor
+                  }}
                   required
                 />
-                <Server className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <Server className="absolute right-3 top-1/2 transform -translate-y-1/2" size={16} style={{ color: primaryColor }} />
               </div>
             </div>
 
             {/* API Secret */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                <Lock size={16} className="text-blue-600" />
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2" style={{ color: primaryColor }}>
+                <Lock size={16} />
                 API Secret Key
               </label>
               <div className="relative">
@@ -217,12 +237,17 @@ export default function BrokerAccountForm() {
                   value={formData.api_Secret}
                   onChange={handleChange}
                   placeholder="Enter your API Secret Key"
-                  className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all pr-10"
+                  className="w-full p-3 border rounded-xl focus:ring-2 outline-none transition-colors pr-10"
+                  style={{
+                    borderColor: `${primaryColor}40`,
+                    focusRingColor: primaryColor
+                  }}
                   required
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 hover:scale-110 transition-transform"
+                  style={{ color: primaryColor }}
                   onClick={() => setShowSecret(!showSecret)}
                 >
                   {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -231,20 +256,28 @@ export default function BrokerAccountForm() {
             </div>
 
             {/* Security Note */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-3">
-              <Shield className="text-blue-600 mt-0.5 flex-shrink-0" size={16} />
-              <p className="text-blue-700 text-xs">
+            <div 
+              className="rounded-xl p-3 flex items-start gap-3"
+              style={{ 
+                backgroundColor: `${primaryColor}05`,
+                border: `1px solid ${primaryColor}20`
+              }}
+            >
+              <Shield className="mt-0.5 flex-shrink-0" size={16} style={{ color: primaryColor }} />
+              <p className="text-xs" style={{ color: primaryColor }}>
                 Your API credentials are encrypted and stored securely. We never store your passwords.
               </p>
             </div>
 
             {/* Message Display */}
             {message && (
-              <div className={`p-3 rounded-xl ${
-                messageType === "success" 
-                  ? "bg-green-50 border border-green-200 text-green-700" 
-                  : "bg-red-50 border border-red-200 text-red-700"
-              }`}>
+              <div 
+                className={`p-3 rounded-xl border ${
+                  messageType === "success" 
+                    ? "bg-green-50 border-green-200 text-green-700" 
+                    : "bg-red-50 border-red-200 text-red-700"
+                }`}
+              >
                 <div className="flex items-center gap-2">
                   {messageType === "success" ? (
                     <CheckCircle size={16} className="text-green-600" />
@@ -260,11 +293,21 @@ export default function BrokerAccountForm() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-semibold text-lg shadow-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full text-white py-3 rounded-xl font-semibold text-lg shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:scale-105"
+              style={{ backgroundColor: primaryColor }}
+              onMouseEnter={(e) => {
+                if (!isLoading) e.target.style.backgroundColor = '#1e88e5';
+              }}
+              onMouseLeave={(e) => {
+                if (!isLoading) e.target.style.backgroundColor = primaryColor;
+              }}
             >
               {isLoading ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <div 
+                    className="w-5 h-5 border-2 rounded-full animate-spin"
+                    style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }}
+                  ></div>
                   Connecting...
                 </>
               ) : (
@@ -277,10 +320,10 @@ export default function BrokerAccountForm() {
           </form>
 
           {/* Footer Links */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-xs text-center text-gray-500">
+          <div className="mt-6 pt-6 border-t" style={{ borderColor: `${primaryColor}20` }}>
+            <p className="text-xs text-center text-gray-600">
               Need help finding your API credentials?{" "}
-              <a href="#" className="text-blue-600 hover:underline font-medium">
+              <a href="#" className="font-medium hover:underline" style={{ color: primaryColor }}>
                 View our guide
               </a>
             </p>

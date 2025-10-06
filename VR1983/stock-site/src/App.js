@@ -18,6 +18,9 @@ import ProfilePage from "./pages/dash/Profile";
 import OrdersPage from "./pages/dash/OrdersPage"; 
 import BrokerAccountForm from "./pages/dash/SelectBroker";
 import { ProfileProvider } from "./context/ProfileContext";
+import Holdings from './pages/dash/Holdings'; // Adjust path as needed
+
+// In your routes configuration
 
 function PrivateRoute({ children }) {
   const { auth } = useAuth();
@@ -46,6 +49,7 @@ export default function App() {
             >
               <Route index element={<Navigate to="home" replace />} />
               <Route path="home" element={<HomeCarousel />} />
+              <Route path="/holdings" element={<Holdings />} />
               <Route path="livemarket" element={<LiveMarket />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="broker" element={<BrokerAccountForm />} />
