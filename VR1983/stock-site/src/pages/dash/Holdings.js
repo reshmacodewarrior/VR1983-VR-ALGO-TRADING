@@ -6,6 +6,9 @@ export default function Holdings() {
   const [holdings, setHoldings] = useState([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
   const primaryColor = "#42a5f5";
+  const buyColor = "#10dd32ff";
+  const sellColor = "#ff4c4cff";
+
   const BASE_URL = process.env.REACT_APP_API_URL || "http://192.168.1.58:8000";
 
   useEffect(() => {
@@ -243,10 +246,10 @@ export default function Holdings() {
                             className="px-3 py-1 rounded text-xs font-medium transition-colors text-white hover:scale-105"
                             style={{ backgroundColor: primaryColor }}
                             onMouseEnter={(e) => {
-                              e.target.style.backgroundColor = '#1e88e5';
+                              e.target.style.backgroundColor = '#358108ff';
                             }}
                             onMouseLeave={(e) => {
-                              e.target.style.backgroundColor = primaryColor;
+                              e.target.style.backgroundColor = '#5fe412ff';
                             }}
                           >
                             Buy More

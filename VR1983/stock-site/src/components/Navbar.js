@@ -150,16 +150,18 @@ export default function TopNavbar() {
                 <Wallet size={20} className="text-white" />
               </div>
               <div>
+                {/* FONT: Bold, large, tight tracking */}
                 <h3 className="font-bold text-lg tracking-tight">My Holdings</h3>
-                <p className="text-blue-100 text-sm font-medium">Real-time portfolio overview</p>
               </div>
             </div>
             <div className="text-right">
+              {/* FONT: Semibold small text */}
               <p className="text-sm font-semibold">Total P&L: 
                 <span className={totalProfitLoss >= 0 ? "text-green-300 ml-1" : "text-red-300 ml-1"}>
                   ₹{totalProfitLoss.toFixed(2)}
                 </span>
               </p>
+              {/* FONT: Extra small, medium weight */}
               <p className="text-xs text-blue-200 font-medium">Value: ₹{totalCurrentValue.toFixed(2)}</p>
             </div>
           </div>
@@ -172,12 +174,15 @@ export default function TopNavbar() {
                 className="animate-spin rounded-full h-8 w-8 border-b-2 border-t-2 mx-auto mb-3"
                 style={{ borderColor: primaryColor }}
               ></div>
+              {/* FONT: Medium weight gray text */}
               <p className="text-gray-500 text-sm font-medium">Loading holdings...</p>
             </div>
           ) : holdings.length === 0 ? (
             <div className="text-center py-6">
               <Wallet size={40} className="mx-auto text-gray-400 mb-3" />
+              {/* FONT: Medium weight gray text */}
               <p className="text-gray-500 font-medium">No holdings yet</p>
+              {/* FONT: Small, lighter gray */}
               <p className="text-gray-400 text-sm mt-1">Start trading to see your portfolio</p>
             </div>
           ) : (
@@ -186,9 +191,12 @@ export default function TopNavbar() {
                 <div key={index} className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all duration-200 bg-white">
                   <div className="flex justify-between items-start mb-3">
                     <div>
+                      {/* FONT: Bold, large, dark, tight tracking */}
                       <p className="font-bold text-gray-900 text-lg tracking-tight">{holding.symbol}</p>
+                      {/* FONT: Extra small, medium, uppercase, wide tracking */}
                       <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">{holding.exchange}</p>
                     </div>
+                    {/* FONT: Extra small, bold */}
                     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getRiskColor(holding.risk_level)}`}>
                       {holding.risk_level}
                     </span>
@@ -196,7 +204,9 @@ export default function TopNavbar() {
                   
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
+                      {/* FONT: Semibold, extra small, uppercase, wide tracking */}
                       <span className="text-gray-600 font-semibold text-xs uppercase tracking-wide">Qty: </span>
+                      {/* FONT: Bold, base size */}
                       <span className="text-gray-900 font-bold block text-base">{holding.quantity}</span>
                     </div>
                     <div>
@@ -252,9 +262,11 @@ export default function TopNavbar() {
         </div>
         
         <div className="hidden md:block">
+          {/* FONT: Extra bold, 2xl, tight tracking, drop shadow */}
           <h2 className="font-extrabold text-2xl tracking-tight text-white drop-shadow-sm">
             VR ALGO TRADING
           </h2>
+          {/* FONT: Semibold, small, wide tracking */}
           <p className="text-blue-100 text-sm font-semibold tracking-wide mt-1">Next Generation Trading Platform</p>
         </div>
       </div>
@@ -290,6 +302,7 @@ export default function TopNavbar() {
           className="flex items-center gap-3 px-5 py-3 bg-white/15 hover:bg-white/25 text-white rounded-xl transition-all duration-200 border border-white/20 hover:border-white/30 hover:shadow-lg backdrop-blur-sm group"
         >
           <FileText size={20} className="group-hover:scale-110 transition-transform" />
+          {/* FONT: Semibold, small, wide tracking */}
           <span className="hidden sm:block font-semibold text-sm tracking-wide">My Orders</span>
         </button>
 
@@ -300,6 +313,7 @@ export default function TopNavbar() {
             className="flex items-center gap-3 px-5 py-3 bg-white/15 hover:bg-white/25 text-white rounded-xl transition-all duration-200 border border-white/20 hover:border-white/30 hover:shadow-lg backdrop-blur-sm group relative"
           >
             <TrendingUp size={20} className="group-hover:scale-110 transition-transform" />
+            {/* FONT: Semibold, small, wide tracking */}
             <span className="hidden sm:block font-semibold text-sm tracking-wide">My Holdings</span>
             {holdings.length > 0 && (
               <span className="absolute -top-2 -right-2 bg-green-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center shadow-lg border border-white">
@@ -334,7 +348,9 @@ export default function TopNavbar() {
                 <div className="flex items-center gap-3">
                   <Bell size={20} className="text-white" />
                   <div>
+                    {/* FONT: Bold, large, tight tracking */}
                     <h3 className="font-bold text-lg tracking-tight">Notifications</h3>
+                    {/* FONT: Medium weight, small */}
                     <p className="text-blue-100 text-sm font-medium">{unreadCount} unread message{unreadCount !== 1 ? 's' : ''}</p>
                   </div>
                 </div>
@@ -349,7 +365,9 @@ export default function TopNavbar() {
                     }`}
                     style={{ borderLeftColor: !notification.read ? primaryColor : 'transparent' }}
                   >
+                    {/* FONT: Medium weight, small */}
                     <p className="text-sm text-gray-800 font-medium">{notification.text}</p>
+                    {/* FONT: Medium weight, extra small */}
                     <p className="text-xs text-gray-500 mt-2 font-medium">{notification.time}</p>
                   </div>
                 ))}
@@ -370,7 +388,9 @@ export default function TopNavbar() {
         {/* User Profile */}
         <div className="relative flex items-center gap-4" ref={dropdownRef}>
           <div className="hidden md:block text-right">
+            {/* FONT: Semibold, small, wide tracking */}
             <p className="text-sm font-semibold tracking-wide">Welcome, <span className="text-blue-100">{user.username}</span></p>
+            {/* FONT: Medium weight, extra small */}
             <p className="text-xs text-blue-100 font-medium">{user.email}</p>
           </div>
           
@@ -401,7 +421,9 @@ export default function TopNavbar() {
                 className="p-5 text-white"
                 style={{ backgroundColor: primaryColor }}
               >
+                {/* FONT: Bold, large, tight tracking */}
                 <p className="font-bold text-lg tracking-tight truncate">{user.username}</p>
+                {/* FONT: Medium weight, small */}
                 <p className="text-sm text-blue-100 font-medium truncate">{user.email}</p>
               </div>
               
