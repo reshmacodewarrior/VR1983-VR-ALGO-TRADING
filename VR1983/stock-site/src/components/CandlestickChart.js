@@ -212,7 +212,7 @@ const CandlestickChart = ({ data, symbol }) => {
     };
 
     loadSignals();
-    const intervalId = setInterval(loadSignals, 30000);
+    const intervalId = setInterval(loadSignals, 1800000);
     return () => clearInterval(intervalId);
   }, [symbol, tradingMode, executeAutoOrder]);
 
