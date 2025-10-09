@@ -64,9 +64,10 @@ class UserInDB(BaseModel):
     mobile_no: Optional[str] = None
     brokers: Optional[list] = []
     watchlist: List[WatchlistItem] = []
-    hashed_password: str = Field(..., alias="password")
+    hashed_password: str  # Remove the alias="password"
     created_at: datetime
     updated_at: Optional[datetime] = None
+    refresh_token: Optional[str] = None  # Store refresh token if needed
 
     # Add this validator for watchlist
     @field_validator("watchlist", mode="before")

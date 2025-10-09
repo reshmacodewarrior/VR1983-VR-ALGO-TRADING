@@ -95,6 +95,72 @@ async def get_user_profile(current_user: UserInDB = Depends(get_current_user)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch user profile"
         )
+@router.post("/signup")
+async def signup(user: User):
+    try:
+        logger.info(f"Signup attempt received - Email: {user.email}, Username: {user.username}")
+        
+        # Check for existing user
+        existing_user = await users_collection.find_one({
+            "$or": [
+                {"email": user.email},
+                {"username": user.username}
+            ]
+        })
+        
+        logger.info(f"Existing user check result: {existing_user is not None}")
+        
+        if existing_user:
+            if existing_user.get("email") == user.email:
+                logger.warning(f"Email already exists: {user.email}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered"
+                )
+            else:
+                logger.warning(f"Username already exists: {user.username}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already taken"
+                )
+        
+        # Hash password
+        hashed_password = get_password_hash(user.password)
+        created_at = datetime.now().isoformat()
+        updated_at = datetime.now().isoformat()
+        
+        user_data = {
+            "username": user.username,
+            "firstname": user.firstname,
+            "lastname": user.lastname,
+            "email": user.email,
+            "mobile_no": user.mobile_no,
+            "hashed_password": hashed_password,  # Make sure this matches your schema
+            "brokers": [],
+            "watchlist": [],
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "refresh_token": None
+        }
+        
+        logger.info(f"Attempting to insert user data: {user_data['email']}")
+        result = await users_collection.insert_one(user_data)
+        
+        logger.info(f"User created successfully with ID: {result.inserted_id}")
+        return {
+            "message": "User created successfully", 
+            "user_id": str(result.inserted_id),
+            "email": user.email
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during signup: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
 @router.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     try:

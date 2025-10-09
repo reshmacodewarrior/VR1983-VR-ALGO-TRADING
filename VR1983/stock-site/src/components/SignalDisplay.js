@@ -1,16 +1,13 @@
 import React from "react";
-import { Bell } from "lucide-react"; // ✅ horn icon
 
 const SignalDisplay = ({
-  currentSignal,
   executingOrder,
-  holdSignal,
-  buySignal,
-  sellSignal,
   tradingMode,
   handleBuy,
   handleSell,
-  autoTradeCount,
+  triggerLevels,
+  triggeredLevels,
+  selectedStock,
   primaryColor = "#42a5f5"
 }) => {
   return (
@@ -23,37 +20,42 @@ const SignalDisplay = ({
       }}
     >
       {executingOrder ? (
-        <p>
-          ⚡ {executingOrder.message} at ₹{executingOrder.price}
+        <p className="flex items-center gap-2">
+          <span className="animate-pulse">⚡</span>
+          {executingOrder.message} at ₹{executingOrder.price}
         </p>
-      ) : holdSignal ? (
-        <p className="flex items-center gap-2" style={{ color: primaryColor }}>
-          <Bell size={18} /> HOLD Signal Active — No trades executed
+      ) : triggeredLevels.length > 0 ? (
+        <div className="bg-red-50 p-2 rounded border border-red-200">
+          <p className="text-red-600 font-medium flex items-center gap-2">
+            <span>🎯</span>
+            PRICE TRIGGER ALERT!
+          </p>
+          <p className="text-sm text-red-700 mt-1">
+            {selectedStock} triggered {triggeredLevels.length} level(s): 
+            <strong> {triggeredLevels.map(level => `₹${level}`).join(', ')}</strong>
+          </p>
+          <p className="text-xs text-red-600 mt-1">
+            This price level is triggering now!
+          </p>
+        </div>
+      ) : triggerLevels.length > 0 ? (
+        <p className="flex items-center gap-2">
+          <span>📊</span>
+          Monitoring {triggerLevels.length} level(s) for {selectedStock}
         </p>
-      ) : currentSignal ? (
-        <p>
-          🔔 Current Signal:{" "}
-          <span
-            className={
-              currentSignal.signal === "BUY"
-                ? "text-green-600"
-                : currentSignal.signal === "SELL"
-                ? "text-red-600"
-                : `text-[${primaryColor}]`
-            }
-          >
-            {currentSignal.signal}
-          </span>
+      ) : selectedStock ? (
+        <p className="text-gray-600">
+          No levels found for {selectedStock}
         </p>
       ) : (
-        <p>No active signal</p>
+        <p>Upload Excel file and select a stock to monitor levels</p>
       )}
 
       {tradingMode === "manual" && (
-        <div className="flex gap-2 mt-2">
+        <div className="flex gap-2 mt-3">
           <button
             onClick={handleBuy}
-            className="px-3 py-1 rounded hover:scale-105 transition-all text-white font-medium"
+            className="px-4 py-2 rounded hover:scale-105 transition-all text-white font-medium shadow-sm"
             style={{ backgroundColor: primaryColor }}
             onMouseEnter={(e) => {
               e.target.style.backgroundColor = '#1e88e5';
@@ -66,7 +68,7 @@ const SignalDisplay = ({
           </button>
           <button
             onClick={handleSell}
-            className="px-3 py-1 rounded hover:scale-105 transition-all text-white font-medium"
+            className="px-4 py-2 rounded hover:scale-105 transition-all text-white font-medium shadow-sm"
             style={{ backgroundColor: primaryColor }}
             onMouseEnter={(e) => {
               e.target.style.backgroundColor = '#1e88e5';
@@ -80,9 +82,9 @@ const SignalDisplay = ({
         </div>
       )}
 
-      {tradingMode === "auto" && (
-        <p className="text-sm mt-2" style={{ color: `${primaryColor}80` }}>
-          🤖 Auto trading active (Executed {autoTradeCount} trades)
+      {tradingMode === "auto" && triggerLevels.length > 0 && (
+        <p className="text-sm mt-2 text-green-600">
+          🤖 Auto trading active - Monitoring {triggerLevels.length} level(s)
         </p>
       )}
     </div>

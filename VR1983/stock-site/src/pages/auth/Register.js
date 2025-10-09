@@ -24,52 +24,75 @@ export default function Register() {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-    
-    const res = await register(
-      form.username,
-      form.firstname,
-      form.lastname,
-      form.email,
-      form.mobile_no,
-      form.password
-    );
 
-    if (res.success) {
-      toast.success(
-        <div className="flex items-center gap-2">
-          <CheckCircle className="w-5 h-5 text-green-400" />
-          <span>Registration successful! Please login.</span>
-        </div>
+    console.log("Form data being submitted:", form);
+
+    try {
+      const res = await register(
+        form.username,
+        form.firstname,
+        form.lastname,
+        form.email,
+        form.mobile_no,
+        form.password
       );
-      navigate("/login");
-    } else {
-      toast.error(res.message || "❌ Registration failed");
-      setError(res.message || "Registration failed. Please try again.");
+
+      console.log("Registration response:", res);
+
+      if (res.success) {
+        toast.success(
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-400" />
+            <span>Registration successful! Please login.</span>
+          </div>
+        );
+        navigate("/login");
+      } else {
+        const errorMessage = res.message || "Registration failed. Please try again.";
+        toast.error(errorMessage);
+        setError(errorMessage);
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      const errorMessage = "An unexpected error occurred. Please try again.";
+      toast.error(errorMessage);
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const checkPasswordStrength = (password) => {
     let strength = 0;
     if (password.length >= 8) strength += 1;
     if (/[A-Z]/.test(password)) strength += 1;
+    if (/[a-z]/.test(password)) strength += 1;
     if (/[0-9]/.test(password)) strength += 1;
     if (/[^A-Za-z0-9]/.test(password)) strength += 1;
     setPasswordStrength(strength);
   };
 
   const handlePasswordChange = (e) => {
-    setForm({ ...form, password: e.target.value });
-    checkPasswordStrength(e.target.value);
+    const newPassword = e.target.value;
+    setForm({ ...form, password: newPassword });
+    checkPasswordStrength(newPassword);
+  };
+
+  const handleInputChange = (field, value) => {
+    setForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const getPasswordStrengthColor = () => {
     switch (passwordStrength) {
       case 0: return "bg-gray-300";
       case 1: return "bg-red-400";
-      case 2: return "bg-yellow-400";
-      case 3: return "bg-blue-400";
-      case 4: return "bg-green-400";
+      case 2: return "bg-orange-400";
+      case 3: return "bg-yellow-400";
+      case 4: return "bg-blue-400";
+      case 5: return "bg-green-400";
       default: return "bg-gray-300";
     }
   };
@@ -78,11 +101,33 @@ export default function Register() {
     switch (passwordStrength) {
       case 0: return "Very Weak";
       case 1: return "Weak";
-      case 2: return "Medium";
-      case 3: return "Strong";
-      case 4: return "Very Strong";
+      case 2: return "Fair";
+      case 3: return "Good";
+      case 4: return "Strong";
+      case 5: return "Very Strong";
       default: return "";
     }
+  };
+
+  const validateForm = () => {
+    // Basic validation
+    if (!form.username || !form.firstname || !form.lastname || !form.email || !form.password) {
+      return "Please fill in all required fields";
+    }
+    
+    if (form.username.length < 3) {
+      return "Username must be at least 3 characters long";
+    }
+    
+    if (form.password.length < 8) {
+      return "Password must be at least 8 characters long";
+    }
+    
+    if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      return "Please enter a valid email address";
+    }
+    
+    return null;
   };
 
   return (
@@ -177,7 +222,7 @@ export default function Register() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* First Name */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">First Name</label>
+                <label className="text-sm font-medium text-gray-700">First Name *</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                   <input
@@ -185,15 +230,16 @@ export default function Register() {
                     placeholder="First Name"
                     className="w-full p-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
                     value={form.firstname}
-                    onChange={(e) => setForm({ ...form, firstname: e.target.value })}
+                    onChange={(e) => handleInputChange('firstname', e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
 
               {/* Last Name */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Last Name</label>
+                <label className="text-sm font-medium text-gray-700">Last Name *</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                   <input
@@ -201,8 +247,9 @@ export default function Register() {
                     placeholder="Last Name"
                     className="w-full p-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
                     value={form.lastname}
-                    onChange={(e) => setForm({ ...form, lastname: e.target.value })}
+                    onChange={(e) => handleInputChange('lastname', e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -210,7 +257,7 @@ export default function Register() {
 
             {/* Username */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Username</label>
+              <label className="text-sm font-medium text-gray-700">Username *</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
@@ -218,15 +265,18 @@ export default function Register() {
                   placeholder="Choose a username"
                   className="w-full p-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
                   value={form.username}
-                  onChange={(e) => setForm({ ...form, username: e.target.value })}
+                  onChange={(e) => handleInputChange('username', e.target.value)}
                   required
+                  minLength={3}
+                  disabled={isLoading}
                 />
               </div>
+              <p className="text-xs text-gray-500">3-50 characters, letters, numbers, and underscores only</p>
             </div>
 
             {/* Email */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Email</label>
+              <label className="text-sm font-medium text-gray-700">Email *</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
@@ -234,8 +284,9 @@ export default function Register() {
                   placeholder="Enter your email"
                   className="w-full p-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
                   value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -247,18 +298,19 @@ export default function Register() {
                 <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
                   type="tel"
-                  placeholder="Enter your mobile number"
+                  placeholder="+919876543210"
                   className="w-full p-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
                   value={form.mobile_no}
-                  onChange={(e) => setForm({ ...form, mobile_no: e.target.value })}
-                  required
+                  onChange={(e) => handleInputChange('mobile_no', e.target.value)}
+                  disabled={isLoading}
                 />
               </div>
+              <p className="text-xs text-gray-500">Optional - 10-15 digits with optional country code</p>
             </div>
 
             {/* Password */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Password</label>
+              <label className="text-sm font-medium text-gray-700">Password *</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
@@ -268,11 +320,14 @@ export default function Register() {
                   value={form.password}
                   onChange={handlePasswordChange}
                   required
+                  minLength={8}
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:opacity-50"
                   onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -285,8 +340,9 @@ export default function Register() {
                     <span className="text-xs text-gray-500">Password strength</span>
                     <span className={`text-xs font-medium ${
                       passwordStrength <= 1 ? "text-red-500" :
-                      passwordStrength === 2 ? "text-yellow-500" :
-                      passwordStrength === 3 ? "text-blue-500" : "text-green-500"
+                      passwordStrength === 2 ? "text-orange-500" :
+                      passwordStrength === 3 ? "text-yellow-500" :
+                      passwordStrength === 4 ? "text-blue-500" : "text-green-500"
                     }`}>
                       {getPasswordStrengthText()}
                     </span>
@@ -294,11 +350,30 @@ export default function Register() {
                   <div className="w-full bg-gray-200 rounded-full h-1.5">
                     <div 
                       className={`h-1.5 rounded-full ${getPasswordStrengthColor()} transition-all duration-300`}
-                      style={{ width: `${(passwordStrength / 4) * 100}%` }}
+                      style={{ width: `${(passwordStrength / 5) * 100}%` }}
                     ></div>
                   </div>
                 </div>
               )}
+              
+              {/* Password requirements */}
+              <div className="text-xs text-gray-500 space-y-1">
+                <p>Password must contain:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li className={form.password.length >= 8 ? "text-green-500" : ""}>
+                    At least 8 characters
+                  </li>
+                  <li className={/[A-Z]/.test(form.password) ? "text-green-500" : ""}>
+                    One uppercase letter
+                  </li>
+                  <li className={/[a-z]/.test(form.password) ? "text-green-500" : ""}>
+                    One lowercase letter
+                  </li>
+                  <li className={/[0-9]/.test(form.password) ? "text-green-500" : ""}>
+                    One number
+                  </li>
+                </ul>
+              </div>
             </div>
 
             <button
