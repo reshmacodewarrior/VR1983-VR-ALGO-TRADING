@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { Wallet, BarChart3, TrendingUp, TrendingDown } from "lucide-react";
 import { toast } from "react-toastify";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function Holdings() {
   const [holdings, setHoldings] = useState([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
+  const [quantities, setQuantities] = useState({});
   const primaryColor = "#42a5f5";
-  const buyColor = "#10dd32ff";
-  const sellColor = "#ff4c4cff";
+  const buyColor = "#10b981";
+  const sellColor = "#ef4444";
 
   const BASE_URL = process.env.REACT_APP_API_URL || "http://192.168.1.58:8000";
 
@@ -32,6 +34,13 @@ export default function Holdings() {
       if (res.ok) {
         const data = await res.json();
         setHoldings(data);
+        
+        // Initialize quantities with current holding quantities
+        const initialQuantities = {};
+        data.forEach(holding => {
+          initialQuantities[holding.symbol] = holding.quantity;
+        });
+        setQuantities(initialQuantities);
       } else {
         console.error("Holdings API error:", res.status);
         toast.error("Failed to fetch holdings");
@@ -44,11 +53,24 @@ export default function Holdings() {
     }
   };
 
-  const placeOrder = async (symbol, type, qty, exchange = "NSE") => {
+  const handleQuantityChange = (symbol, value) => {
+    setQuantities(prev => ({
+      ...prev,
+      [symbol]: Math.max(0, parseInt(value) || 0)
+    }));
+  };
+
+  const placeOrder = async (symbol, type, exchange = "NSE") => {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
         toast.error("Please login first");
+        return;
+      }
+
+      const qty = quantities[symbol];
+      if (!qty || qty <= 0) {
+        toast.error("Please enter a valid quantity");
         return;
       }
 
@@ -106,6 +128,26 @@ export default function Holdings() {
   const totalProfitLoss = holdings.reduce((sum, h) => sum + h.profit_loss, 0);
   const totalProfitLossPercentage = totalInvestment > 0 ? ((totalProfitLoss / totalInvestment) * 100) : 0;
 
+  // Prepare data for charts
+  const pieChartData = holdings.map(holding => ({
+    name: holding.symbol,
+    value: holding.current_value,
+    investment: holding.investment_value,
+    profitLoss: holding.profit_loss,
+    percentage: totalCurrentValue > 0 ? (holding.current_value / totalCurrentValue) * 100 : 0
+  }));
+
+  const barChartData = holdings.map(holding => ({
+    symbol: holding.symbol,
+    investment: holding.investment_value,
+    currentValue: holding.current_value,
+    profitLoss: holding.profit_loss,
+    profitLossPercentage: holding.investment_value > 0 ? 
+      (holding.profit_loss / holding.investment_value) * 100 : 0
+  }));
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#8DD1E1'];
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
@@ -161,7 +203,7 @@ export default function Holdings() {
         </div>
 
         {/* Holdings Table */}
-        <div className="bg-white border rounded-2xl p-6 shadow-lg">
+        <div className="bg-white border rounded-2xl p-6 shadow-lg mb-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Stock Holdings</h2>
             <div className="flex items-center gap-4">
@@ -202,7 +244,7 @@ export default function Holdings() {
               <table className="w-full min-w-full">
                 <thead>
                   <tr className="border-b" style={{ borderColor: `${primaryColor}20` }}>
-                    {["Symbol", "Exchange", "Quantity", "Avg Price", "Current Price", "Investment", "Current Value", "P&L", "Risk", "Actions"].map((header) => (
+                    {["Symbol", "Exchange", "Quantity", "Avg Price", "Current Price", "Investment", "Current Value", "P&L", "Risk", "Quantity", "Actions"].map((header) => (
                       <th 
                         key={header} 
                         className="text-left p-4 font-medium"
@@ -230,9 +272,14 @@ export default function Holdings() {
                       <td className="p-4 text-right font-mono text-gray-900">₹{holding.investment_value.toFixed(2)}</td>
                       <td className="p-4 text-right font-mono text-gray-900">₹{holding.current_value.toFixed(2)}</td>
                       <td className="p-4 text-right">
-                        <span className={`font-mono font-semibold ${getProfitLossColor(holding.profit_loss)}`}>
-                          ₹{holding.profit_loss.toFixed(2)}
-                        </span>
+                        <div className={`font-mono font-semibold ${getProfitLossColor(holding.profit_loss)}`}>
+                          <div>₹{holding.profit_loss.toFixed(2)}</div>
+                          <div className="text-sm">
+                            {holding.investment_value > 0 ? 
+                              `${((holding.profit_loss / holding.investment_value) * 100).toFixed(2)}%` : '0%'
+                            }
+                          </div>
+                        </div>
                       </td>
                       <td className="p-4 text-center">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(holding.risk_level)}`}>
@@ -240,23 +287,40 @@ export default function Holdings() {
                         </span>
                       </td>
                       <td className="p-4">
+                        <input
+                          type="number"
+                          min="1"
+                          value={quantities[holding.symbol] || ''}
+                          onChange={(e) => handleQuantityChange(holding.symbol, e.target.value)}
+                          className="w-20 px-2 py-1 border border-gray-300 rounded text-center font-mono"
+                          placeholder="Qty"
+                        />
+                      </td>
+                      <td className="p-4">
                         <div className="flex gap-2 justify-center">
                           <button
-                            onClick={() => placeOrder(holding.symbol, "BUY", holding.quantity, holding.exchange)}
+                            onClick={() => placeOrder(holding.symbol, "BUY", holding.exchange)}
                             className="px-3 py-1 rounded text-xs font-medium transition-colors text-white hover:scale-105"
-                            style={{ backgroundColor: primaryColor }}
+                            style={{ backgroundColor: buyColor }}
                             onMouseEnter={(e) => {
-                              e.target.style.backgroundColor = '#358108ff';
+                              e.target.style.backgroundColor = '#059669';
                             }}
                             onMouseLeave={(e) => {
-                              e.target.style.backgroundColor = '#5fe412ff';
+                              e.target.style.backgroundColor = buyColor;
                             }}
                           >
-                            Buy More
+                            Buy
                           </button>
                           <button
-                            onClick={() => placeOrder(holding.symbol, "SELL", holding.quantity, holding.exchange)}
-                            className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs font-medium transition-colors text-white hover:scale-105"
+                            onClick={() => placeOrder(holding.symbol, "SELL", holding.exchange)}
+                            className="px-3 py-1 rounded text-xs font-medium transition-colors text-white hover:scale-105"
+                            style={{ backgroundColor: sellColor }}
+                            onMouseEnter={(e) => {
+                              e.target.style.backgroundColor = '#dc2626';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.backgroundColor = sellColor;
+                            }}
                           >
                             Sell
                           </button>
@@ -269,6 +333,98 @@ export default function Holdings() {
             </div>
           )}
         </div>
+
+        {/* Charts Section */}
+        {holdings.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Pie Chart - Portfolio Allocation */}
+            <div className="bg-white border rounded-2xl p-6 shadow-lg">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Portfolio Allocation</h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieChartData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percentage }) => `${name} (${percentage.toFixed(1)}%)`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {pieChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value) => [`₹${value.toFixed(2)}`, 'Current Value']}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Bar Chart - Profit/Loss by Stock */}
+            <div className="bg-white border rounded-2xl p-6 shadow-lg">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Profit & Loss Analysis</h3>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={barChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="symbol" angle={-45} textAnchor="end" height={80} />
+                    <YAxis />
+                    <Tooltip 
+                      formatter={(value, name) => {
+                        if (name === 'profitLoss') return [`₹${value.toFixed(2)}`, 'P&L'];
+                        if (name === 'profitLossPercentage') return [`${value.toFixed(2)}%`, 'P&L %'];
+                        return [`₹${value.toFixed(2)}`, name];
+                      }}
+                    />
+                    <Legend />
+                    <Bar 
+                      dataKey="profitLoss" 
+                      name="Profit/Loss" 
+                      fill="#8884d8"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Performance Summary Chart */}
+        {holdings.length > 0 && (
+          <div className="bg-white border rounded-2xl p-6 shadow-lg">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Investment vs Current Value</h3>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="symbol" angle={-45} textAnchor="end" height={80} />
+                  <YAxis />
+                  <Tooltip formatter={(value) => `₹${value.toFixed(2)}`} />
+                  <Legend />
+                  <Bar 
+                    dataKey="investment" 
+                    name="Investment" 
+                    fill="#f59e0b"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar 
+                    dataKey="currentValue" 
+                    name="Current Value" 
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
