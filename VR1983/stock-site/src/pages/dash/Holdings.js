@@ -309,7 +309,7 @@ export default function Holdings() {
                               e.target.style.backgroundColor = buyColor;
                             }}
                           >
-                            Buy
+                            Buy more
                           </button>
                           <button
                             onClick={() => placeOrder(holding.symbol, "SELL", holding.exchange)}

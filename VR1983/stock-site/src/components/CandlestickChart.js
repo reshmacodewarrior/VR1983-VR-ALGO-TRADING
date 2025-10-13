@@ -13,7 +13,7 @@ const CandlestickChart = ({ data, symbol }) => {
   const [quantity, setQuantity] = useState(1);
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [celebrate, setCelebrate] = useState(""); 
-  const [tradingMode, setTradingMode] = useState("manual");
+  const [tradingMode, setTradingMode] = useState("auto"); // Changed default to "auto"
   const [executingOrder, setExecutingOrder] = useState(null);
   
   // States for Excel data and levels
@@ -23,6 +23,7 @@ const CandlestickChart = ({ data, symbol }) => {
   const [selectedStock, setSelectedStock] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [autoOrders, setAutoOrders] = useState([]);
 
   const primaryColor = "#42a5f5";
 
@@ -65,6 +66,7 @@ const CandlestickChart = ({ data, symbol }) => {
             // Your file has columns: "stock name" and "levels"
             const symbol = item['stock name'] || item['Stock Name'] || item.stock || item.STOCK;
             const level = item.levels || item.Level || item.level || item.PRICE;
+            const action = item.action || item.Action || 'BUY'; // Default to BUY if not specified
 
             if (!symbol || level === undefined || level === null) {
               console.warn(`Row ${index} missing symbol or level:`, item);
@@ -79,6 +81,7 @@ const CandlestickChart = ({ data, symbol }) => {
             }
             
             const processedLevel = parseFloat(level);
+            const processedAction = action.toString().toUpperCase();
             
             if (isNaN(processedLevel)) {
               console.warn(`Invalid level value in row ${index}:`, level);
@@ -89,6 +92,7 @@ const CandlestickChart = ({ data, symbol }) => {
               originalSymbol: symbol.toString().trim(),
               symbol: processedSymbol,
               level: processedLevel,
+              action: processedAction,
               name: symbol.toString().trim()
             };
           }).filter(item => item !== null);
@@ -114,7 +118,10 @@ const CandlestickChart = ({ data, symbol }) => {
     
     return excelData
       .filter(item => item.symbol === selectedSymbol)
-      .map(item => item.level);
+      .map(item => ({
+        level: item.level,
+        action: item.action || 'BUY'
+      }));
   };
 
   // Update trigger levels when stock selection changes
@@ -130,21 +137,80 @@ const CandlestickChart = ({ data, symbol }) => {
     }
   }, [selectedStock, excelData]);
 
-  // Check for level triggers in real-time
+  // Auto place order function
+  const autoPlaceOrder = async (symbol, level, action) => {
+    if (!data?.length) return;
+
+    const latest = data[data.length - 1];
+    const currentPrice = latest.Close || latest.close;
+
+    const orderData = {
+      order_id: `AUTO_${action}_${Date.now()}`,
+      user_id: "68b17a50dba7d93a5ac110e7",
+      symbol: selectedStock || symbol,
+      exchange: "NSE",
+      transaction_type: action,
+      quantity: quantity,
+      order_type: "LIMIT",
+      price: level, // Use trigger level as limit price
+      product: "MIS",
+      status: "PENDING",
+    };
+
+    try {
+      setExecutingOrder({ symbol: selectedStock || symbol, action, level });
+      
+      const result = await placeOrder(orderData);
+      
+      // Record the auto order
+      const newAutoOrder = {
+        symbol: selectedStock || symbol,
+        action,
+        level,
+        quantity,
+        price: currentPrice,
+        timestamp: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
+        orderId: result?.order_id || orderData.order_id,
+        status: result?.status || 'EXECUTED'
+      };
+      
+      setAutoOrders(prev => [...prev, newAutoOrder]);
+      recordTransaction(orderData, action, "auto", result, currentPrice);
+      
+      console.log(`✅ AUTO ${action} order placed: ${quantity} Qty ${selectedStock || symbol} @ ₹${level}`);
+      setCelebrate(`✅ AUTO ${action}: ${quantity} Qty ${selectedStock || symbol} @ ₹${level}`);
+      
+    } catch (err) {
+      console.error(`Auto ${action} order error:`, err);
+      setCelebrate(`❌ Auto ${action} failed: ${err.message}`);
+    } finally {
+      setExecutingOrder(null);
+    }
+  };
+
+  // Check for level triggers in real-time and auto place orders
   useEffect(() => {
-    if (!data?.length || triggerLevels.length === 0) return;
+    if (!data?.length || triggerLevels.length === 0 || tradingMode !== "auto") return;
 
     const latestPrice = data[data.length - 1].Close || data[data.length - 1].close;
     const newTriggered = [];
 
-    triggerLevels.forEach(level => {
+    triggerLevels.forEach(trigger => {
+      const { level, action } = trigger;
+      
       // Check if price is within 0.5% of the trigger level
       const threshold = level * 0.005; // 0.5% threshold
       if (Math.abs(latestPrice - level) <= threshold) {
-        if (!triggeredLevels.includes(level)) {
-          newTriggered.push(level);
-          // Show notification
-          setCelebrate(`🎯 Price Triggered! ${selectedStock} reached ₹${level}`);
+        if (!triggeredLevels.some(t => t.level === level && t.action === action)) {
+          newTriggered.push({ level, action });
+          
+          // Auto place order if in auto mode
+          if (tradingMode === "auto") {
+            autoPlaceOrder(symbol, level, action);
+          } else {
+            // Just show alert in manual mode
+            setCelebrate(`🎯 Price Triggered! ${selectedStock} reached ₹${level} - ${action} signal`);
+          }
         }
       }
     });
@@ -152,7 +218,7 @@ const CandlestickChart = ({ data, symbol }) => {
     if (newTriggered.length > 0) {
       setTriggeredLevels(prev => [...prev, ...newTriggered]);
     }
-  }, [data, triggerLevels, selectedStock, triggeredLevels]);
+  }, [data, triggerLevels, selectedStock, triggeredLevels, tradingMode, quantity]);
 
   // Get unique stocks for dropdown
   const uniqueStocks = [...new Set(excelData.map(item => item.symbol))];
@@ -199,7 +265,7 @@ const CandlestickChart = ({ data, symbol }) => {
     const orderData = {
       order_id: `MANUAL_BUY_${Date.now()}`,
       user_id: "68b17a50dba7d93a5ac110e7",
-      symbol,
+      symbol: selectedStock || symbol,
       exchange: "NSE",
       transaction_type: "BUY",
       quantity,
@@ -212,7 +278,7 @@ const CandlestickChart = ({ data, symbol }) => {
     try {
       const result = await placeOrder(orderData);
       recordTransaction(orderData, "BUY", "manual", result, latest.close);
-      console.log(`✅ Bought ${quantity} shares of ${symbol} at ₹${latest.close}`);
+      console.log(`✅ Bought ${quantity} shares of ${selectedStock || symbol} at ₹${latest.close}`);
     } catch (err) {
       console.error("Buy order error:", err);
     }
@@ -225,7 +291,7 @@ const CandlestickChart = ({ data, symbol }) => {
     const orderData = {
       order_id: `MANUAL_SELL_${Date.now()}`,
       user_id: "68b17a50dba7d93a5ac110e7",
-      symbol,
+      symbol: selectedStock || symbol,
       exchange: "NSE",
       transaction_type: "SELL",
       quantity,
@@ -238,7 +304,7 @@ const CandlestickChart = ({ data, symbol }) => {
     try {
       const result = await placeOrder(orderData);
       recordTransaction(orderData, "SELL", "manual", result, latest.close);
-      console.log(`✅ Sold ${quantity} shares of ${symbol} at ₹${latest.close}`);
+      console.log(`✅ Sold ${quantity} shares of ${selectedStock || symbol} at ₹${latest.close}`);
     } catch (err) {
       console.error("Sell order error:", err);
     }
@@ -251,7 +317,7 @@ const CandlestickChart = ({ data, symbol }) => {
       type,
       price: executedPrice,
       time: result?.timestamp || new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
-      symbol,
+      symbol: selectedStock || symbol,
       orderData: {
         ...orderData,
         executed_at: result?.timestamp || new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
@@ -262,7 +328,7 @@ const CandlestickChart = ({ data, symbol }) => {
 
     setTransactionHistory((prev) => [...prev, newTransaction]);
     setCelebrate(
-      `✅ ${mode.toUpperCase()} ${type} executed: ${orderData.quantity} Qty ${symbol} @ ₹${executedPrice}`
+      `✅ ${mode.toUpperCase()} ${type} executed: ${orderData.quantity} Qty ${selectedStock || symbol} @ ₹${executedPrice}`
     );
   };
 
@@ -296,7 +362,7 @@ const CandlestickChart = ({ data, symbol }) => {
           low: lows,
           close: closes,
           type: "candlestick",
-          name: symbol,
+          name: selectedStock || symbol,
           increasing: { line: { color: "green" }, fillcolor: "green" },
           decreasing: { line: { color: "red" }, fillcolor: "red" },
         }
@@ -306,21 +372,26 @@ const CandlestickChart = ({ data, symbol }) => {
           type: "scatter",
           mode: "lines",
           line: { color: "deepgreen", width: 2 },
-          name: symbol,
+          name: selectedStock || symbol,
         };
 
-  // Create traces for trigger levels (horizontal lines)
-  const levelTraces = triggerLevels.map((level, index) => {
-    const isTriggered = triggeredLevels.includes(level);
+  // Create traces for trigger levels (horizontal lines) with different colors for BUY/SELL
+  const levelTraces = triggerLevels.map((trigger, index) => {
+    const { level, action } = trigger;
+    const isTriggered = triggeredLevels.some(t => t.level === level && t.action === action);
+    
+    const lineColor = action === 'BUY' ? 
+      (isTriggered ? '#00ff00' : '#008800') : 
+      (isTriggered ? '#ff0000' : '#880000');
     
     return {
       x: [dates[0], dates[dates.length - 1]],
       y: [level, level],
       type: 'scatter',
       mode: 'lines',
-      name: `Level: ₹${level}`,
+      name: `${action}: ₹${level}`,
       line: {
-        color: isTriggered ? '#ff4444' : '#6666ff',
+        color: lineColor,
         width: 3,
         dash: isTriggered ? 'solid' : 'dash'
       },
@@ -329,20 +400,20 @@ const CandlestickChart = ({ data, symbol }) => {
   });
 
   // Create traces for triggered points (dots on the latest price)
-  const triggerPointTraces = triggeredLevels.map((level, index) => {
+  const triggerPointTraces = triggeredLevels.map((trigger, index) => {
+    const { level, action } = trigger;
     const latestDate = dates[dates.length - 1];
-    const latestPrice = closes[closes.length - 1];
     
     return {
       x: [latestDate],
       y: [level],
       type: 'scatter',
       mode: 'markers+text',
-      name: `Triggered: ₹${level}`,
-      text: [`🎯`],
+      name: `Triggered: ${action} @ ₹${level}`,
+      text: [action === 'BUY' ? '🟢' : '🔴'],
       textposition: 'top center',
       marker: {
-        color: '#ff4444',
+        color: action === 'BUY' ? '#00ff00' : '#ff0000',
         size: 15,
         symbol: 'diamond'
       },
@@ -370,7 +441,8 @@ const CandlestickChart = ({ data, symbol }) => {
           📁 Upload Stock Levels Excel File
         </label>
         <p className="text-xs text-gray-600 mb-2">
-          Required columns: <strong>"stock name"</strong> and <strong>"levels"</strong>
+          Required columns: <strong>"stock name"</strong> and <strong>"levels"</strong><br />
+          Optional column: <strong>"action"</strong> (BUY/SELL - defaults to BUY)
         </p>
         <input
           type="file"
@@ -469,7 +541,7 @@ const CandlestickChart = ({ data, symbol }) => {
       </div>
 
       <TradingModeToggle
-        symbol={symbol}
+        symbol={selectedStock || symbol}
         tradingMode={tradingMode}
         setTradingMode={setTradingMode}
       />
@@ -489,6 +561,9 @@ const CandlestickChart = ({ data, symbol }) => {
             borderColor: `${primaryColor}40`,
           }}
         />
+        <span className="text-xs text-gray-500 ml-2">
+          (Used for auto orders)
+        </span>
       </div>
 
       <SignalDisplay
@@ -499,6 +574,7 @@ const CandlestickChart = ({ data, symbol }) => {
         triggerLevels={triggerLevels}
         triggeredLevels={triggeredLevels}
         selectedStock={selectedStock}
+        autoOrders={autoOrders}
       />
 
       <ChartControls
@@ -515,6 +591,35 @@ const CandlestickChart = ({ data, symbol }) => {
 
       <PriceSummary opens={opens} highs={highs} lows={lows} closes={closes} />
 
+      {/* Auto Orders History */}
+      {autoOrders.length > 0 && (
+        <div className="mb-4 p-3 rounded-lg border" style={{ 
+          backgroundColor: `${primaryColor}05`,
+          borderColor: `${primaryColor}20`
+        }}>
+          <h4 className="font-medium mb-2" style={{ color: primaryColor }}>
+             Auto Order History
+          </h4>
+          <div className="max-h-40 overflow-y-auto">
+            {autoOrders.slice().reverse().map((order, index) => (
+              <div key={index} className="flex justify-between items-center py-1 border-b border-gray-200 last:border-b-0">
+                <div>
+                  <span className={`font-medium ${order.action === 'BUY' ? 'text-green-600' : 'text-red-600'}`}>
+                    {order.action}
+                  </span>
+                  <span className="text-sm ml-2">{order.symbol}</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm">Qty: {order.quantity}</div>
+                  <div className="text-xs text-gray-500">₹{order.level}</div>
+                </div>
+                <div className="text-xs text-gray-400">{order.timestamp}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Trigger Levels Information */}
       {triggerLevels.length > 0 && (
         <div className="mb-4 p-3 rounded-lg border" style={{ 
@@ -525,23 +630,32 @@ const CandlestickChart = ({ data, symbol }) => {
             🎯 Trigger Levels for {selectedStock}
           </h4>
           <div className="flex flex-wrap gap-2">
-            {triggerLevels.map(level => (
-              <span
-                key={level}
-                className={`px-3 py-1 rounded text-sm font-medium ${
-                  triggeredLevels.includes(level) 
-                    ? 'bg-red-100 text-red-800 border-2 border-red-400' 
-                    : 'bg-blue-100 text-blue-800 border border-blue-300'
-                }`}
-              >
-                ₹{level} {triggeredLevels.includes(level) && '🎯 TRIGGERED'}
-              </span>
-            ))}
+            {triggerLevels.map((trigger, index) => {
+              const { level, action } = trigger;
+              const isTriggered = triggeredLevels.some(t => t.level === level && t.action === action);
+              
+              return (
+                <span
+                  key={`${level}-${action}`}
+                  className={`px-3 py-1 rounded text-sm font-medium ${
+                    isTriggered 
+                      ? action === 'BUY' 
+                        ? 'bg-green-100 text-green-800 border-2 border-green-400' 
+                        : 'bg-red-100 text-red-800 border-2 border-red-400'
+                      : action === 'BUY'
+                        ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                        : 'bg-orange-100 text-orange-800 border border-orange-300'
+                  }`}
+                >
+                  {action} @ ₹{level} {isTriggered && '🎯'}
+                </span>
+              );
+            })}
           </div>
           {triggeredLevels.length > 0 && (
-            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-              <p className="text-red-700 text-sm font-medium">
-                ⚡ {triggeredLevels.length} level(s) triggered! Current price is near these levels.
+            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+              <p className="text-yellow-700 text-sm font-medium">
+                ⚡ {triggeredLevels.length} level() triggered! {tradingMode === 'auto' ? 'Auto orders placed.' : 'Manual mode - place orders manually.'}
               </p>
             </div>
           )}
@@ -581,7 +695,7 @@ const CandlestickChart = ({ data, symbol }) => {
               bgcolor: 'rgba(255,255,255,0.8)'
             },
             title: {
-              text: `${selectedStock || symbol} - Price Chart with Trigger Levels`,
+              text: `${selectedStock || symbol} - Price Chart with Auto Trading${tradingMode === 'auto' ? ' (AUTO MODE)' : ''}`,
               font: { color: primaryColor, size: 16 }
             }
           }}
