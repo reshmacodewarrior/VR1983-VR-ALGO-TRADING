@@ -27,7 +27,7 @@ def start_scheduler():
         # Add the job to run every 3 minutes
         scheduler.add_job(
             check_stocks_and_trigger,
-            trigger=IntervalTrigger(minutes=3),  # Run every 3 minutes
+            trigger=IntervalTrigger(minutes=30),
             id='algo_trading_checker',
             name='Algorithmic trading signal generator',
             replace_existing=True

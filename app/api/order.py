@@ -391,20 +391,24 @@ async def get_order_view_panel(current_user: UserInDB = Depends(get_current_user
         ))
 
     return result
+
 class HoldingViewItem(BaseModel):
     symbol: str
+    exchange: str
     quantity: int
     average_price: float
     current_price: float
+    investment_value: float
+    current_value: float
     profit_loss: float
     risk_level: str
-    exchange: str
+
 
 
 @router.get("/holding-view", response_model=List[HoldingViewItem])
 async def get_holding_view(current_user: UserInDB = Depends(get_current_user)):
     """
-    Returns the user's holdings with P&L and risk level.
+    Returns the user's holdings with P&L, risk level, and pre-calculated values.
     """
     holdings = await holdings_collection.find(
         {"user_id": current_user.id}
@@ -414,23 +418,28 @@ async def get_holding_view(current_user: UserInDB = Depends(get_current_user)):
     for h in holdings:
         try:
             current_price = get_current_market_price(h["symbol"])
-        except:
+        except Exception:
             current_price = h["average_price"]
 
-        profit_loss = (current_price - h["average_price"]) * h["quantity"]
+        quantity = h["quantity"]
+        avg_price = h["average_price"]
 
-        investment_value = h["average_price"] * h["quantity"]
+        # 🔹 Calculations (now on backend)
+        investment_value = avg_price * quantity
+        current_value = current_price * quantity
+        profit_loss = current_value - investment_value
         risk_level = calculate_risk_level(profit_loss, investment_value)
 
         result.append(HoldingViewItem(
             symbol=h["symbol"],
-            quantity=h["quantity"],
-            average_price=h["average_price"],
+            exchange=h.get("exchange", "NSE"),
+            quantity=quantity,
+            average_price=avg_price,
             current_price=current_price,
+            investment_value=round(investment_value, 2),
+            current_value=round(current_value, 2),
             profit_loss=round(profit_loss, 2),
             risk_level=risk_level,
-            exchange=h.get("exchange", "NSE")
         ))
 
     return result
-

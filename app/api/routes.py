@@ -11,6 +11,7 @@ from .watchlist import router as watchlist_router
 from .order import router as order_router   
 from .levels import router as levels_router 
 from .signal import router as signal_router
+from .csv_file import router as csv_router
 
 api_router = APIRouter()
 
@@ -22,5 +23,7 @@ api_router.include_router(watchlist_router)
 api_router.include_router(order_router)
 api_router.include_router(levels_router)
 api_router.include_router(signal_router)
+api_router.include_router(csv_router)
+
 
 

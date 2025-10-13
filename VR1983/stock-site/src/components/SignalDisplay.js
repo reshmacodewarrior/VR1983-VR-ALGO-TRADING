@@ -1,66 +1,90 @@
 import React from "react";
-import { Bell } from "lucide-react"; // ✅ horn icon
 
 const SignalDisplay = ({
-  currentSignal,
   executingOrder,
-  holdSignal,
-  buySignal,
-  sellSignal,
   tradingMode,
   handleBuy,
   handleSell,
-  autoTradeCount,
+  triggerLevels,
+  triggeredLevels,
+  selectedStock,
+  primaryColor = "#42a5f5"
 }) => {
   return (
-    <div className="mb-4 p-3 rounded-lg bg-gray-800 text-gray-200">
+    <div 
+      className="mb-4 p-3 rounded-lg border"
+      style={{ 
+        backgroundColor: `${primaryColor}05`,
+        borderColor: `${primaryColor}20`,
+        color: primaryColor
+      }}
+    >
       {executingOrder ? (
-        <p>
-          ⚡ {executingOrder.message} at ₹{executingOrder.price}
+        <p className="flex items-center gap-2">
+          <span className="animate-pulse">⚡</span>
+          {executingOrder.message} at ₹{executingOrder.price}
         </p>
-      ) : holdSignal ? (
-        <p className="flex items-center gap-2 text-yellow-400">
-          <Bell size={18} /> HOLD Signal Active — No trades executed
+      ) : triggeredLevels.length > 0 ? (
+        <div className="bg-red-50 p-2 rounded border border-red-200">
+          <p className="text-red-600 font-medium flex items-center gap-2">
+            <span>🎯</span>
+            PRICE TRIGGER ALERT!
+          </p>
+          <p className="text-sm text-red-700 mt-1">
+            {selectedStock} triggered {triggeredLevels.length} level(s): 
+            <strong> {triggeredLevels.map(level => `₹${level}`).join(', ')}</strong>
+          </p>
+          <p className="text-xs text-red-600 mt-1">
+            This price level is triggering now!
+          </p>
+        </div>
+      ) : triggerLevels.length > 0 ? (
+        <p className="flex items-center gap-2">
+          <span>📊</span>
+          Monitoring {triggerLevels.length} level(s) for {selectedStock}
         </p>
-      ) : currentSignal ? (
-        <p>
-          🔔 Current Signal:{" "}
-          <span
-            className={
-              currentSignal.signal === "BUY"
-                ? "text-green-400"
-                : currentSignal.signal === "SELL"
-                ? "text-red-400"
-                : "text-yellow-400"
-            }
-          >
-            {currentSignal.signal}
-          </span>
+      ) : selectedStock ? (
+        <p className="text-gray-600">
+          No levels found for {selectedStock}
         </p>
       ) : (
-        <p>No active signal</p>
+        <p>Upload Excel file and select a stock to monitor levels</p>
       )}
 
       {tradingMode === "manual" && (
-        <div className="flex gap-2 mt-2">
+        <div className="flex gap-2 mt-3">
           <button
             onClick={handleBuy}
-            className="bg-green-600 px-3 py-1 rounded hover:bg-green-700"
+            className="px-4 py-2 rounded hover:scale-105 transition-all text-white font-medium shadow-sm"
+            style={{ backgroundColor: primaryColor }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#1e88e5';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = primaryColor;
+            }}
           >
             BUY
           </button>
           <button
             onClick={handleSell}
-            className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
+            className="px-4 py-2 rounded hover:scale-105 transition-all text-white font-medium shadow-sm"
+            style={{ backgroundColor: primaryColor }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = '#1e88e5';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = primaryColor;
+            }}
           >
             SELL
           </button>
         </div>
       )}
 
-      {tradingMode === "auto" && (
-        <p className="text-sm text-gray-400 mt-2">
-           Auto trading active (Executed {autoTradeCount} trades)
+      {tradingMode === "auto" && triggerLevels.length > 0 && (
+        <p className="text-sm mt-2 text-green-600">
+          🤖 Auto trading active - Monitoring {triggerLevels.length} level(s)
         </p>
       )}
     </div>

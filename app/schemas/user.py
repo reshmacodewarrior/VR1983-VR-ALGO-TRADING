@@ -33,7 +33,7 @@ class User(BaseModel):
         description="Mobile number in international format (e.g., +919876543210)"
     )
     brokers: Optional[list] = []
-    watchlist: Optional[List[WatchlistItem]] = None
+    watchlist: List[WatchlistItem] = []
     password: str = Field(..., min_length=8)
 
     @field_validator("password")
@@ -63,17 +63,29 @@ class UserInDB(BaseModel):
     email: EmailStr
     mobile_no: Optional[str] = None
     brokers: Optional[list] = []
-    watchlist: Optional[List[WatchlistItem]] = None
-    hashed_password: str = Field(..., alias="password")
+    watchlist: List[WatchlistItem] = []
+    hashed_password: str  # Remove the alias="password"
     created_at: datetime
     updated_at: Optional[datetime] = None
+    refresh_token: Optional[str] = None  # Store refresh token if needed
+
+    # Add this validator for watchlist
+    @field_validator("watchlist", mode="before")
+    @classmethod
+    def convert_watchlist(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, list):
+            # Convert each item to WatchlistItem if it's a dict
+            return [WatchlistItem(**item) if isinstance(item, dict) else item for item in v]
+        return v
 
     @field_validator("mobile_no")
     @classmethod
     def validate_mobile(cls, v):
         if v is None:
             return v
-        pattern = re.compile(r"^\+?[0-9]{10,15}$")  # e.g. +919876543210
+        pattern = re.compile(r"^\+?[0-9]{10,15}$")
         if not pattern.match(v):
             raise ValueError("Invalid mobile number format")
         return v
@@ -86,5 +98,3 @@ class UserInDB(BaseModel):
         elif isinstance(v, str) and ObjectId.is_valid(v):
             return v
         raise ValueError("Invalid ObjectId format")
-
-
