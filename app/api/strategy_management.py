@@ -1,54 +1,154 @@
-# api/strategy_management.py - CREATE THIS FILE
-from fastapi import APIRouter, HTTPException
-from typing import List, Optional
-import uuid
+# api/strategy_management.py - UPDATE WITH USER AUTH
+from fastapi import APIRouter, HTTPException, Depends
+from typing import List
 from datetime import datetime
+from database.collections import (
+    create_strategy, get_strategy, get_user_strategies, 
+    update_strategy, delete_strategy
+)
+from schemas.strategy import StrategyCreate, StrategyResponse
+from services.user import get_current_user  # ✅ IMPORT YOUR AUTH
+from schemas.user import UserInDB  # ✅ IMPORT USER SCHEMA
 
 router = APIRouter(prefix="/api/strategy", tags=["strategy_management"])
 
-# Temporary storage (replace with MongoDB)
-user_strategies = {}
+@router.post("/create", response_model=dict)
+async def create_new_strategy(
+    strategy_data: StrategyCreate,
+    current_user: UserInDB = Depends(get_current_user)  # ✅ USER AUTH
+):
+    """Create and SAVE strategy for authenticated user"""
+    try:
+        # Prepare strategy document with user_id from auth
+        strategy_doc = {
+            "user_id": current_user.id,  # ✅ FROM AUTHENTICATED USER
+            "name": strategy_data.name,
+            "description": strategy_data.description,
+            "code": strategy_data.code,
+            "language": strategy_data.language,
+            "parameters": strategy_data.parameters,
+            "tags": strategy_data.tags,
+            "status": "draft",
+            "version": 1,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "is_public": False
+        }
+        
+        strategy_id = await create_strategy(strategy_doc)
+        
+        return {
+            "strategy_id": strategy_id,
+            "status": "created",
+            "message": "Strategy saved to database successfully"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create strategy: {str(e)}")
 
-@router.post("/create")
-async def create_strategy(strategy_data: dict):
-    """Create a new strategy"""
-    strategy_id = str(uuid.uuid4())
-    
-    user_strategies[strategy_id] = {
-        "id": strategy_id,
-        "name": strategy_data.get("name", "My Strategy"),
-        "code": strategy_data.get("code", ""),
-        "language": strategy_data.get("language", "pinescript"),
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
-    }
-    
-    return {"strategy_id": strategy_id, "status": "created"}
+@router.get("/list", response_model=List[dict])
+async def list_user_strategies(
+    current_user: UserInDB = Depends(get_current_user)  # ✅ USER AUTH
+):
+    """Get all strategies for authenticated user"""
+    try:
+        strategies = await get_user_strategies(current_user.id)  # ✅ USER SPECIFIC
+        
+        return [
+            {
+                "id": str(strategy["_id"]),
+                "name": strategy["name"],
+                "description": strategy.get("description", ""),
+                "language": strategy["language"],
+                "status": strategy.get("status", "draft"),
+                "created_at": strategy["created_at"],
+                "updated_at": strategy["updated_at"],
+                "tags": strategy.get("tags", [])
+            }
+            for strategy in strategies
+        ]
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch strategies: {str(e)}")
 
-@router.get("/list")
-async def list_strategies(user_id: str = "demo_user"):  # Add real user auth later
-    """Get all strategies for user"""
-    user_strats = [s for s in user_strategies.values()]
-    return user_strats
+@router.get("/{strategy_id}", response_model=dict)
+async def get_strategy_by_id(
+    strategy_id: str,
+    current_user: UserInDB = Depends(get_current_user)  # ✅ USER AUTH
+):
+    """Get specific strategy - only if user owns it"""
+    try:
+        strategy = await get_strategy(strategy_id, current_user.id)  # ✅ USER CHECK
+        
+        if not strategy:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+        
+        return {
+            "id": str(strategy["_id"]),
+            "user_id": strategy["user_id"],
+            "name": strategy["name"],
+            "description": strategy.get("description", ""),
+            "code": strategy["code"],
+            "language": strategy["language"],
+            "parameters": strategy.get("parameters", {}),
+            "status": strategy.get("status", "draft"),
+            "created_at": strategy["created_at"],
+            "updated_at": strategy["updated_at"],
+            "tags": strategy.get("tags", []),
+            "is_public": strategy.get("is_public", False)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch strategy: {str(e)}")
 
-@router.get("/{strategy_id}")
-async def get_strategy(strategy_id: str):
-    """Get specific strategy"""
-    if strategy_id not in user_strategies:
-        raise HTTPException(status_code=404, detail="Strategy not found")
-    
-    return user_strategies[strategy_id]
+@router.put("/{strategy_id}", response_model=dict)
+async def update_strategy_by_id(
+    strategy_id: str, 
+    strategy_data: dict,
+    current_user: UserInDB = Depends(get_current_user)  # ✅ USER AUTH
+):
+    """Update strategy - only if user owns it"""
+    try:
+        update_data = {
+            **strategy_data,
+            "updated_at": datetime.utcnow()
+        }
+        
+        success = await update_strategy(strategy_id, update_data, current_user.id)  # ✅ USER CHECK
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Strategy not found or access denied")
+        
+        return {
+            "status": "updated",
+            "message": "Strategy updated in database"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update strategy: {str(e)}")
 
-@router.put("/{strategy_id}")
-async def update_strategy(strategy_id: str, strategy_data: dict):
-    """Update strategy"""
-    if strategy_id not in user_strategies:
-        raise HTTPException(status_code=404, detail="Strategy not found")
-    
-    user_strategies[strategy_id].update({
-        "code": strategy_data.get("code", user_strategies[strategy_id]["code"]),
-        "name": strategy_data.get("name", user_strategies[strategy_id]["name"]),
-        "updated_at": datetime.utcnow()
-    })
-    
-    return {"status": "updated"}
+@router.delete("/{strategy_id}")
+async def delete_strategy_by_id(
+    strategy_id: str,
+    current_user: UserInDB = Depends(get_current_user)  # ✅ USER AUTH
+):
+    """Delete strategy - only if user owns it"""
+    try:
+        success = await delete_strategy(strategy_id, current_user.id)  # ✅ USER CHECK
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Strategy not found or access denied")
+        
+        return {
+            "status": "deleted", 
+            "message": "Strategy deleted from database"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete strategy: {str(e)}")

@@ -19,6 +19,8 @@ import OrdersPage from "./pages/dash/OrdersPage";
 import BrokerAccountForm from "./pages/dash/SelectBroker";
 import { ProfileProvider } from "./context/ProfileContext";
 import Holdings from './pages/dash/Holdings'; // Adjust path as needed
+import StrategyTester from './pages/dash/StrategyTester';
+
 
 // In your routes configuration
 
@@ -54,6 +56,7 @@ export default function App() {
               <Route path="profile" element={<ProfilePage />} />
               <Route path="broker" element={<BrokerAccountForm />} />
               <Route path="orders" element={<OrdersPage />} />
+              <Route path="/strategy-tester" element={<StrategyTester />} />
             </Route>
 
             {/* Catch-all route */}
