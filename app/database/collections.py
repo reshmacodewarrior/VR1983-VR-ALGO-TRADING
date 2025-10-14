@@ -17,4 +17,6 @@ holdings_collection = db.get_collection("holdings")
 balance_collection = db.get_collection("balance")
 levels_collection = db.get_collection("levels")
 watchlist_collection = db.get_collection("watchlist")
+strategies_collection = db.get_collection("strategies")
+strategy_orders_collection = db.get_collection("strategy_orders")
 
