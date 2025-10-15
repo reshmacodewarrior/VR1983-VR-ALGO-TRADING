@@ -6,6 +6,7 @@ import {
   FaSignOutAlt,
   FaBars,
   FaChevronRight,
+  FaFlask
 } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -34,15 +35,21 @@ export default function SideNavbar() {
       icon: <SiIobroker className="text-lg" />,
     },
     { name: "Profile", path: "/profile", icon: <FaUser className="text-lg" /> },
-  ];
 
-  const bottomMenuItems = [
     {
-      name: "Logout",
-      path: "/login",
-      icon: <FaSignOutAlt className="text-lg" />,
+      name: "Strategy Tester",  // 🆕 NEW ITEM
+      path: "/strategy-tester", 
+      icon: <FaFlask className="text-lg"/> // You can use emoji or import an icon
     },
   ];
+
+    const bottomMenuItems = [
+      {
+        name: "Logout",
+        path: "/login",
+        icon: <FaSignOutAlt className="text-lg" />,
+      },
+    ];
 
   const handleClick = (item) => {
     if (item.name === "Logout") {

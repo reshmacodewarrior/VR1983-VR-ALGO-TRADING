@@ -31,11 +31,10 @@ const SignalDisplay = ({
             PRICE TRIGGER ALERT!
           </p>
           <p className="text-sm text-red-700 mt-1">
-            {selectedStock} triggered {triggeredLevels.length} level(s): 
-            <strong> {triggeredLevels.map(level => `₹${level}`).join(', ')}</strong>
+            {selectedStock} triggered {triggeredLevels.length} level(s)
           </p>
           <p className="text-xs text-red-600 mt-1">
-            This price level is triggering now!
+            Executing trigger price now!
           </p>
         </div>
       ) : triggerLevels.length > 0 ? (
@@ -84,7 +83,7 @@ const SignalDisplay = ({
 
       {tradingMode === "auto" && triggerLevels.length > 0 && (
         <p className="text-sm mt-2 text-green-600">
-          🤖 Auto trading active - Monitoring {triggerLevels.length} level(s)
+           Auto trading active - Monitoring {triggerLevels.length} level(s)
         </p>
       )}
     </div>
