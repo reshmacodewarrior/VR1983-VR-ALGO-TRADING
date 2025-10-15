@@ -20,6 +20,9 @@ export default function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
 
+  // Primary color from sidebar
+  const primaryColor = "#42a5f5";
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -91,7 +94,7 @@ export default function Register() {
       case 1: return "bg-red-400";
       case 2: return "bg-orange-400";
       case 3: return "bg-yellow-400";
-      case 4: return "bg-blue-400";
+      case 4: return primaryColor;
       case 5: return "bg-green-400";
       default: return "bg-gray-300";
     }
@@ -109,62 +112,26 @@ export default function Register() {
     }
   };
 
-  const validateForm = () => {
-    // Basic validation
-    if (!form.username || !form.firstname || !form.lastname || !form.email || !form.password) {
-      return "Please fill in all required fields";
-    }
-    
-    if (form.username.length < 3) {
-      return "Username must be at least 3 characters long";
-    }
-    
-    if (form.password.length < 8) {
-      return "Password must be at least 8 characters long";
-    }
-    
-    if (!form.email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      return "Please enter a valid email address";
-    }
-    
-    return null;
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute animate-float"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 5}s`,
-              animationDuration: `${15 + Math.random() * 10}s`
-            }}
-          >
-            <div className="w-2 h-2 bg-blue-400 rounded-full opacity-20"></div>
-          </div>
-        ))}
-      </div>
-
-      <div className="relative flex flex-col md:flex-row bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl rounded-2xl overflow-hidden w-full max-w-4xl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
+      <div className="relative flex flex-col md:flex-row bg-white shadow-2xl rounded-2xl overflow-hidden w-full max-w-4xl border border-gray-200">
         {/* Left section - Brand showcase */}
-        <div className="hidden md:flex flex-col justify-between bg-gradient-to-br from-green-600/20 to-blue-600/20 w-1/2 p-10 text-white relative overflow-hidden">
+        <div 
+          className="hidden md:flex flex-col justify-between w-1/2 p-10 text-white relative overflow-hidden"
+          style={{ backgroundColor: primaryColor }}
+        >
           {/* Animated background */}
           <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-green-400 rounded-full filter blur-xl animate-pulse"></div>
-            <div className="absolute bottom-1/3 right-1/4 w-24 h-24 bg-blue-400 rounded-full filter blur-xl animate-pulse delay-1000"></div>
+            <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-white rounded-full filter blur-xl animate-pulse"></div>
+            <div className="absolute bottom-1/3 right-1/4 w-24 h-24 bg-blue-300 rounded-full filter blur-xl animate-pulse delay-1000"></div>
           </div>
           
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-white/10 rounded-lg">
-                <Zap className="h-8 w-8 text-green-300" />
+                <Zap className="h-8 w-8 text-white" />
               </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-green-300 to-blue-300 bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold text-white">
                 VR ALGO TRADING
               </h1>
             </div>
@@ -177,33 +144,41 @@ export default function Register() {
 
           <div className="relative z-10 space-y-4">
             <div className="flex items-center gap-3">
-              <BarChart3 className="text-green-300" size={20} />
+              <BarChart3 className="text-blue-100" size={20} />
               <span className="text-blue-100">Real-time market analytics</span>
             </div>
             <div className="flex items-center gap-3">
-              <Rocket className="text-blue-300" size={20} />
+              <Rocket className="text-blue-100" size={20} />
               <span className="text-blue-100">Advanced trading algorithms</span>
             </div>
             <div className="flex items-center gap-3">
-              <Shield className="text-cyan-300" size={20} />
+              <Shield className="text-blue-100" size={20} />
               <span className="text-blue-100">Bank-level security</span>
             </div>
             <div className="flex items-center gap-3">
-              <Globe className="text-purple-300" size={20} />
+              <Globe className="text-blue-100" size={20} />
               <span className="text-blue-100">Global market access</span>
             </div>
           </div>
         </div>
 
         {/* Right section - Registration form */}
-        <div className="w-full md:w-1/2 p-8 md:p-12 bg-white/95 backdrop-blur-sm">
+        <div className="w-full md:w-1/2 p-8 md:p-12 bg-white">
           <div className="text-center mb-8">
             <div className="md:hidden flex justify-center mb-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Zap className="h-6 w-6 text-blue-600" />
+                <div 
+                  className="p-2 rounded-lg text-white"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  <Zap className="h-6 w-6" />
                 </div>
-                <h1 className="text-xl font-bold text-gray-800">VR ALGO TRADING</h1>
+                <h1 
+                  className="text-xl font-bold"
+                  style={{ color: primaryColor }}
+                >
+                  VR ALGO TRADING
+                </h1>
               </div>
             </div>
             
@@ -228,7 +203,8 @@ export default function Register() {
                   <input
                     type="text"
                     placeholder="First Name"
-                    className="w-full p-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                    className="w-full p-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all bg-white"
+                    style={{ focusRingColor: primaryColor }}
                     value={form.firstname}
                     onChange={(e) => handleInputChange('firstname', e.target.value)}
                     required
@@ -245,7 +221,8 @@ export default function Register() {
                   <input
                     type="text"
                     placeholder="Last Name"
-                    className="w-full p-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                    className="w-full p-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all bg-white"
+                    style={{ focusRingColor: primaryColor }}
                     value={form.lastname}
                     onChange={(e) => handleInputChange('lastname', e.target.value)}
                     required
@@ -263,7 +240,8 @@ export default function Register() {
                 <input
                   type="text"
                   placeholder="Choose a username"
-                  className="w-full p-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                  className="w-full p-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all bg-white"
+                  style={{ focusRingColor: primaryColor }}
                   value={form.username}
                   onChange={(e) => handleInputChange('username', e.target.value)}
                   required
@@ -282,7 +260,8 @@ export default function Register() {
                 <input
                   type="email"
                   placeholder="Enter your email"
-                  className="w-full p-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                  className="w-full p-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all bg-white"
+                  style={{ focusRingColor: primaryColor }}
                   value={form.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
                   required
@@ -299,7 +278,8 @@ export default function Register() {
                 <input
                   type="tel"
                   placeholder="+919876543210"
-                  className="w-full p-3 pl-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                  className="w-full p-3 pl-10 border border-gray-300 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all bg-white"
+                  style={{ focusRingColor: primaryColor }}
                   value={form.mobile_no}
                   onChange={(e) => handleInputChange('mobile_no', e.target.value)}
                   disabled={isLoading}
@@ -316,7 +296,8 @@ export default function Register() {
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="Create a strong password"
-                  className="w-full p-3 pl-10 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                  className="w-full p-3 pl-10 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all bg-white"
+                  style={{ focusRingColor: primaryColor }}
                   value={form.password}
                   onChange={handlePasswordChange}
                   required
@@ -379,7 +360,8 @@ export default function Register() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white py-3 rounded-xl font-semibold text-lg shadow-lg hover:from-green-700 hover:to-blue-700 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full text-white py-3 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              style={{ backgroundColor: primaryColor }}
             >
               {isLoading ? (
                 <>
@@ -400,7 +382,8 @@ export default function Register() {
               Already have an account?{" "}
               <Link
                 to="/login"
-                className="text-green-600 font-semibold hover:text-green-700 transition-colors"
+                className="font-semibold transition-colors hover:underline"
+                style={{ color: primaryColor }}
               >
                 Sign In
               </Link>
@@ -410,38 +393,17 @@ export default function Register() {
           <div className="mt-6 pt-6 border-t border-gray-200">
             <p className="text-xs text-center text-gray-500">
               By creating an account, you agree to our{" "}
-              <a href="#" className="text-green-600 hover:underline">
+              <a href="#" className="hover:underline" style={{ color: primaryColor }}>
                 Terms of Service
               </a>{" "}
               and{" "}
-              <a href="#" className="text-green-600 hover:underline">
+              <a href="#" className="hover:underline" style={{ color: primaryColor }}>
                 Privacy Policy
               </a>
             </p>
           </div>
         </div>
       </div>
-
-      {/* Custom CSS for animations */}
-      <style jsx>{`
-        @keyframes float {
-          0% {
-            transform: translateY(0) rotate(0deg);
-            opacity: 0.2;
-          }
-          50% {
-            transform: translateY(-20px) rotate(10deg);
-            opacity: 0.3;
-          }
-          100% {
-            transform: translateY(0) rotate(0deg);
-            opacity: 0.2;
-          }
-        }
-        .animate-float {
-          animation: float 5s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 }
