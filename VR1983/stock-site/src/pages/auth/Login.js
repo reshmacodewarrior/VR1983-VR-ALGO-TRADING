@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { TrendingUp, Mail, Lock, Eye, EyeOff, Zap, BarChart3, Rocket, Shield, Globe } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Zap, BarChart3, Rocket, Shield, Globe } from "lucide-react";
 import { toast } from "react-toastify";
 import logo from "../../asset/vrlogo.png";
 
@@ -12,6 +12,9 @@ export default function Login() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Primary color from sidebar
+  const primaryColor = "#42a5f5";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,38 +38,23 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute animate-float"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 5}s`,
-              animationDuration: `${15 + Math.random() * 10}s`
-            }}
-          >
-            <div className="w-2 h-2 bg-blue-400 rounded-full opacity-20"></div>
-          </div>
-        ))}
-      </div>
-
-      <div className="relative flex flex-col md:flex-row bg-white/5 backdrop-blur-md border border-white/10 shadow-2xl rounded-2xl overflow-hidden w-full max-w-4xl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
+      <div className="relative flex flex-col md:flex-row bg-white shadow-2xl rounded-2xl overflow-hidden w-full max-w-4xl border border-gray-200">
         {/* Left section - Brand showcase */}
-        <div className="hidden md:flex flex-col justify-between bg-gradient-to-br from-blue-600/20 to-purple-600/20 w-1/2 p-10 text-white relative overflow-hidden">
+        <div 
+          className="hidden md:flex flex-col justify-between w-1/2 p-10 text-white relative overflow-hidden"
+          style={{ backgroundColor: primaryColor }}
+        >
           {/* Animated background */}
           <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-blue-400 rounded-full filter blur-xl animate-pulse"></div>
-            <div className="absolute bottom-1/3 right-1/4 w-24 h-24 bg-purple-400 rounded-full filter blur-xl animate-pulse delay-1000"></div>
+            <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-white rounded-full filter blur-xl animate-pulse"></div>
+            <div className="absolute bottom-1/3 right-1/4 w-24 h-24 bg-blue-300 rounded-full filter blur-xl animate-pulse delay-1000"></div>
           </div>
           
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-6">
               <img src={logo} alt="VR Algo Trading" className="h-12 w-12" />
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold text-white">
                 VR ALGO TRADING
               </h1>
             </div>
@@ -79,31 +67,36 @@ export default function Login() {
 
           <div className="relative z-10 space-y-4">
             <div className="flex items-center gap-3">
-              <BarChart3 className="text-blue-300" size={20} />
+              <BarChart3 className="text-blue-100" size={20} />
               <span className="text-blue-100">Real-time market data</span>
             </div>
             <div className="flex items-center gap-3">
-              <Rocket className="text-purple-300" size={20} />
+              <Rocket className="text-blue-100" size={20} />
               <span className="text-blue-100">Advanced trading algorithms</span>
             </div>
             <div className="flex items-center gap-3">
-              <Shield className="text-green-300" size={20} />
+              <Shield className="text-blue-100" size={20} />
               <span className="text-blue-100">Secure & encrypted</span>
             </div>
             <div className="flex items-center gap-3">
-              <Globe className="text-cyan-300" size={20} />
+              <Globe className="text-blue-100" size={20} />
               <span className="text-blue-100">Global market access</span>
             </div>
           </div>
         </div>
 
         {/* Right section - Login form */}
-        <div className="w-full md:w-1/2 p-8 md:p-12 bg-white/95 backdrop-blur-sm">
+        <div className="w-full md:w-1/2 p-8 md:p-12 bg-white">
           <div className="text-center mb-8">
             <div className="md:hidden flex justify-center mb-6">
               <div className="flex items-center gap-3">
                 <img src={logo} alt="VR Algo Trading" className="h-10 w-10" />
-                <h1 className="text-xl font-bold text-gray-800">VR ALGO TRADING</h1>
+                <h1 
+                  className="text-xl font-bold"
+                  style={{ color: primaryColor }}
+                >
+                  VR ALGO TRADING
+                </h1>
               </div>
             </div>
             
@@ -126,7 +119,8 @@ export default function Login() {
                 <input
                   type="text"
                   placeholder="Enter your email"
-                  className="w-full p-4 pl-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  className="w-full p-4 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all bg-white"
+                  style={{ focusRingColor: primaryColor }}
                   value={form.username}
                   onChange={(e) => setForm({ ...form, username: e.target.value })}
                   required
@@ -141,7 +135,8 @@ export default function Login() {
                 <input
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
-                  className="w-full p-4 pl-12 pr-12 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  className="w-full p-4 pl-12 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:border-transparent outline-none transition-all bg-white"
+                  style={{ focusRingColor: primaryColor }}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   required
@@ -161,7 +156,11 @@ export default function Login() {
                 <input
                   type="checkbox"
                   id="remember"
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 rounded focus:ring-2 focus:ring-offset-2 border-gray-300"
+                  style={{ 
+                    backgroundColor: primaryColor,
+                    borderColor: primaryColor
+                  }}
                 />
                 <label htmlFor="remember" className="ml-2 text-sm text-gray-600">
                   Remember me
@@ -170,7 +169,8 @@ export default function Login() {
               
               <Link
                 to="/forgotpassword"
-                className="text-sm text-blue-600 font-medium hover:text-blue-700 transition-colors"
+                className="text-sm font-medium transition-colors hover:underline"
+                style={{ color: primaryColor }}
               >
                 Forgot Password?
               </Link>
@@ -179,7 +179,8 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-400 to-purple-500 text-white py-4 rounded-xl font-semibold text-lg shadow-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full text-white py-4 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              style={{ backgroundColor: primaryColor }}
             >
               {isLoading ? (
                 <>
@@ -200,7 +201,8 @@ export default function Login() {
               Don't have an account?{" "}
               <Link
                 to="/register"
-                className="text-blue-600 font-semibold hover:text-blue-700 transition-colors"
+                className="font-semibold transition-colors hover:underline"
+                style={{ color: primaryColor }}
               >
                 Create Account
               </Link>
@@ -210,38 +212,17 @@ export default function Login() {
           <div className="mt-8 pt-6 border-t border-gray-200">
             <p className="text-xs text-center text-gray-500">
               By signing in, you agree to our{" "}
-              <a href="#" className="text-blue-600 hover:underline">
+              <a href="#" className="hover:underline" style={{ color: primaryColor }}>
                 Terms of Service
               </a>{" "}
               and{" "}
-              <a href="#" className="text-blue-600 hover:underline">
+              <a href="#" className="hover:underline" style={{ color: primaryColor }}>
                 Privacy Policy
               </a>
             </p>
           </div>
         </div>
       </div>
-
-      {/* Custom CSS for animations */}
-      <style jsx>{`
-        @keyframes float {
-          0% {
-            transform: translateY(0) rotate(0deg);
-            opacity: 0.2;
-          }
-          50% {
-            transform: translateY(-20px) rotate(10deg);
-            opacity: 0.3;
-          }
-          100% {
-            transform: translateY(0) rotate(0deg);
-            opacity: 0.2;
-          }
-        }
-        .animate-float {
-          animation: float 5s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 }
