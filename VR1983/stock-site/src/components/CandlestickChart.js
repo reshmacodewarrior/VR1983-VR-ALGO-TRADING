@@ -1,31 +1,92 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Plot from "react-plotly.js";
 import TradingModeToggle from "./TradingModeToggle";
 import SignalDisplay from "./SignalDisplay";
 import ChartControls from "./ChartControls";
 import PriceSummary from "./PriceSummary";
 import Celebration from "./Celebration";
+import TechnicalIndicatorsPanel from "./TechnicalIndicatorsPanel";
 import { placeOrder } from "../services/api";
-import * as XLSX from 'xlsx';
+import { loadExcelData, getStockLevels } from "../services/excelService";
 
 const CandlestickChart = ({ data, symbol }) => {
   const [chartType, setChartType] = useState("candlestick");
   const [quantity, setQuantity] = useState(1);
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [celebrate, setCelebrate] = useState(""); 
-  const [tradingMode, setTradingMode] = useState("auto"); // Changed default to "auto"
+  const [tradingMode, setTradingMode] = useState("auto"); // Auto mode by default
   const [executingOrder, setExecutingOrder] = useState(null);
   
-  // States for Excel data and levels
+  // Excel data states
   const [excelData, setExcelData] = useState([]);
   const [triggerLevels, setTriggerLevels] = useState([]);
   const [triggeredLevels, setTriggeredLevels] = useState([]);
   const [selectedStock, setSelectedStock] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [autoOrders, setAutoOrders] = useState([]);
+
+  // Technical Analysis States
+  const [technicalIndicators, setTechnicalIndicators] = useState({
+    sma: { period: 20, visible: false, color: "#FF6B00" },
+    ema: { period: 20, visible: false, color: "#00C853" },
+    rsi: { period: 14, visible: false, color: "#8E24AA" },
+    bollinger: { period: 20, visible: false, color: "#2962FF" },
+    volume: { visible: true, color: "#42a5f5" }
+  });
+
+  // Sidebar states - FIXED: Default both sidebars visible
+  const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
+  const [rightSidebarVisible, setRightSidebarVisible] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  const chartRef = useRef(null);
+  const plotDivRef = useRef(null);
 
   const primaryColor = "#42a5f5";
+
+  // Mouse wheel zoom handler
+  const handleWheel = useCallback((event) => {
+    if (plotDivRef.current && plotDivRef.current.contains(event.target)) {
+      event.preventDefault();
+    }
+  }, []);
+
+  // Add wheel event listener
+  useEffect(() => {
+    const chartElement = chartRef.current;
+    if (chartElement) {
+      chartElement.addEventListener('wheel', handleWheel, { passive: false });
+      return () => chartElement.removeEventListener('wheel', handleWheel);
+    }
+  }, [handleWheel]);
+
+  // Fullscreen functionality
+  const toggleFullscreen = () => {
+    if (!isFullscreen) {
+      if (chartRef.current.requestFullscreen) {
+        chartRef.current.requestFullscreen();
+      } else if (chartRef.current.webkitRequestFullscreen) {
+        chartRef.current.webkitRequestFullscreen();
+      } else if (chartRef.current.msRequestFullscreen) {
+        chartRef.current.msRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // Load Excel file
   const handleFileUpload = async (event) => {
@@ -35,93 +96,10 @@ const CandlestickChart = ({ data, symbol }) => {
     try {
       const data = await loadExcelData(file);
       setExcelData(data);
-      console.log("✅ Excel file loaded successfully:", data.length, "records");
     } catch (error) {
       console.error("Error loading Excel file:", error);
-      alert("Error loading Excel file. Please check the format. Required columns: 'stock name' and 'levels'");
+      alert("Error loading Excel file. Please check the format.");
     }
-  };
-
-  // Excel data loader function
-  const loadExcelData = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      
-      reader.onload = (e) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
-          
-          console.log('Raw Excel data:', jsonData);
-
-          if (jsonData.length === 0) {
-            throw new Error('No data found in Excel file');
-          }
-
-          // Process data for your specific format
-          const processedData = jsonData.map((item, index) => {
-            // Your file has columns: "stock name" and "levels"
-            const symbol = item['stock name'] || item['Stock Name'] || item.stock || item.STOCK;
-            const level = item.levels || item.Level || item.level || item.PRICE;
-            const action = item.action || item.Action || 'BUY'; // Default to BUY if not specified
-
-            if (!symbol || level === undefined || level === null) {
-              console.warn(`Row ${index} missing symbol or level:`, item);
-              return null;
-            }
-
-            let processedSymbol = symbol.toString().trim();
-            
-            // Add .NS suffix if not present
-            if (!processedSymbol.includes('.') && !processedSymbol.includes('.NS') && !processedSymbol.includes('.BO')) {
-              processedSymbol = `${processedSymbol}.NS`;
-            }
-            
-            const processedLevel = parseFloat(level);
-            const processedAction = action.toString().toUpperCase();
-            
-            if (isNaN(processedLevel)) {
-              console.warn(`Invalid level value in row ${index}:`, level);
-              return null;
-            }
-
-            return {
-              originalSymbol: symbol.toString().trim(),
-              symbol: processedSymbol,
-              level: processedLevel,
-              action: processedAction,
-              name: symbol.toString().trim()
-            };
-          }).filter(item => item !== null);
-
-          if (processedData.length === 0) {
-            throw new Error('No valid data found. Please check if your Excel has "stock name" and "levels" columns.');
-          }
-
-          resolve(processedData);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      
-      reader.onerror = (error) => reject(new Error('Failed to read file'));
-      reader.readAsArrayBuffer(file);
-    });
-  };
-
-  // Get levels for selected stock
-  const getStockLevels = (excelData, selectedSymbol) => {
-    if (!excelData || !selectedSymbol) return [];
-    
-    return excelData
-      .filter(item => item.symbol === selectedSymbol)
-      .map(item => ({
-        level: item.level,
-        action: item.action || 'BUY'
-      }));
   };
 
   // Update trigger levels when stock selection changes
@@ -129,87 +107,105 @@ const CandlestickChart = ({ data, symbol }) => {
     if (selectedStock && excelData.length > 0) {
       const levels = getStockLevels(excelData, selectedStock);
       setTriggerLevels(levels);
-      setTriggeredLevels([]); // Reset triggered levels when stock changes
-      console.log(`📊 Set ${levels.length} trigger levels for ${selectedStock}:`, levels);
     } else {
       setTriggerLevels([]);
-      setTriggeredLevels([]);
     }
   }, [selectedStock, excelData]);
 
-  // Auto place order function
-  const autoPlaceOrder = async (symbol, level, action) => {
-    if (!data?.length) return;
-
-    const latest = data[data.length - 1];
-    const currentPrice = latest.Close || latest.close;
-
-    const orderData = {
-      order_id: `AUTO_${action}_${Date.now()}`,
-      user_id: "68b17a50dba7d93a5ac110e7",
-      symbol: selectedStock || symbol,
-      exchange: "NSE",
-      transaction_type: action,
-      quantity: quantity,
-      order_type: "LIMIT",
-      price: level, // Use trigger level as limit price
-      product: "MIS",
-      status: "PENDING",
-    };
-
-    try {
-      setExecutingOrder({ symbol: selectedStock || symbol, action, level });
-      
-      const result = await placeOrder(orderData);
-      
-      // Record the auto order
-      const newAutoOrder = {
-        symbol: selectedStock || symbol,
-        action,
-        level,
-        quantity,
-        price: currentPrice,
-        timestamp: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
-        orderId: result?.order_id || orderData.order_id,
-        status: result?.status || 'EXECUTED'
-      };
-      
-      setAutoOrders(prev => [...prev, newAutoOrder]);
-      recordTransaction(orderData, action, "auto", result, currentPrice);
-      
-      console.log(`✅ AUTO ${action} order placed: ${quantity} Qty ${selectedStock || symbol} @ ₹${level}`);
-      setCelebrate(`✅ AUTO ${action}: ${quantity} Qty ${selectedStock || symbol} @ ₹${level}`);
-      
-    } catch (err) {
-      console.error(`Auto ${action} order error:`, err);
-      setCelebrate(`❌ Auto ${action} failed: ${err.message}`);
-    } finally {
-      setExecutingOrder(null);
+  // Technical Indicator Calculations
+  const calculateSMA = (data, period) => {
+    const sma = [];
+    for (let i = period - 1; i < data.length; i++) {
+      const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+      sma.push(sum / period);
     }
+    return sma;
   };
 
-  // Check for level triggers in real-time and auto place orders
+  const calculateEMA = (data, period) => {
+    const ema = [];
+    const multiplier = 2 / (period + 1);
+    ema[0] = data[0];
+    
+    for (let i = 1; i < data.length; i++) {
+      ema[i] = (data[i] - ema[i-1]) * multiplier + ema[i-1];
+    }
+    return ema;
+  };
+
+  // Generate technical indicator traces
+  const generateTechnicalTraces = () => {
+    const traces = [];
+    if (!data?.length) return traces;
+
+    const closes = data.map(d => d.Close ?? d.close);
+    const dates = data.map(d => new Date(d.date));
+
+    // SMA
+    if (technicalIndicators.sma.visible) {
+      const sma = calculateSMA(closes, technicalIndicators.sma.period);
+      const smaDates = dates.slice(technicalIndicators.sma.period - 1);
+      
+      traces.push({
+        x: smaDates,
+        y: sma,
+        type: 'scatter',
+        mode: 'lines',
+        name: `SMA ${technicalIndicators.sma.period}`,
+        line: { color: technicalIndicators.sma.color, width: 1 },
+        yaxis: 'y'
+      });
+    }
+
+    // EMA
+    if (technicalIndicators.ema.visible) {
+      const ema = calculateEMA(closes, technicalIndicators.ema.period);
+      
+      traces.push({
+        x: dates,
+        y: ema,
+        type: 'scatter',
+        mode: 'lines',
+        name: `EMA ${technicalIndicators.ema.period}`,
+        line: { color: technicalIndicators.ema.color, width: 1 },
+        yaxis: 'y'
+      });
+    }
+
+    // Volume
+    if (technicalIndicators.volume.visible && data[0]?.Volume) {
+      const volumes = data.map(d => d.Volume ?? d.volume);
+      traces.push({
+        x: dates,
+        y: volumes,
+        type: 'bar',
+        name: 'Volume',
+        marker: { color: technicalIndicators.volume.color },
+        opacity: 0.3,
+        yaxis: 'y2'
+      });
+    }
+
+    return traces;
+  };
+
+  // Check for level triggers - AUTO MODE ENABLED BY DEFAULT
   useEffect(() => {
-    if (!data?.length || triggerLevels.length === 0 || tradingMode !== "auto") return;
+    if (!data?.length || triggerLevels.length === 0) return;
 
     const latestPrice = data[data.length - 1].Close || data[data.length - 1].close;
     const newTriggered = [];
 
-    triggerLevels.forEach(trigger => {
-      const { level, action } = trigger;
-      
-      // Check if price is within 0.5% of the trigger level
-      const threshold = level * 0.005; // 0.5% threshold
+    triggerLevels.forEach(level => {
+      const threshold = level * 0.001;
       if (Math.abs(latestPrice - level) <= threshold) {
-        if (!triggeredLevels.some(t => t.level === level && t.action === action)) {
-          newTriggered.push({ level, action });
+        if (!triggeredLevels.includes(level)) {
+          newTriggered.push(level);
+          setCelebrate(`🎯 Price triggered! ${selectedStock} reached ₹${level}`);
           
-          // Auto place order if in auto mode
+          // Auto trade execution - AUTO MODE DEFAULT
           if (tradingMode === "auto") {
-            autoPlaceOrder(symbol, level, action);
-          } else {
-            // Just show alert in manual mode
-            setCelebrate(`🎯 Price Triggered! ${selectedStock} reached ₹${level} - ${action} signal`);
+            executeAutoTrade(level, latestPrice);
           }
         }
       }
@@ -218,50 +214,34 @@ const CandlestickChart = ({ data, symbol }) => {
     if (newTriggered.length > 0) {
       setTriggeredLevels(prev => [...prev, ...newTriggered]);
     }
-  }, [data, triggerLevels, selectedStock, triggeredLevels, tradingMode, quantity]);
+  }, [data, triggerLevels, selectedStock, triggeredLevels, tradingMode]);
 
-  // Get unique stocks for dropdown
-  const uniqueStocks = [...new Set(excelData.map(item => item.symbol))];
+  const executeAutoTrade = async (level, price) => {
+    const orderData = {
+      order_id: `AUTO_${Date.now()}`,
+      user_id: "68b17a50dba7d93a5ac110e7",
+      symbol: selectedStock,
+      exchange: "NSE",
+      transaction_type: "BUY",
+      quantity,
+      order_type: "MARKET",
+      product: "MIS",
+      status: "COMPLETE",
+      average_price: price,
+    };
 
-  // Filter stocks based on search term
-  const filteredStocks = uniqueStocks.filter(stock => 
-    stock.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Handle stock selection
-  const handleStockSelect = (stock) => {
-    setSelectedStock(stock);
-    setSearchTerm(stock); // Set search term to selected stock
-    setIsDropdownOpen(false); // Close dropdown after selection
-  };
-
-  // Handle search input change
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
-    if (!isDropdownOpen) {
-      setIsDropdownOpen(true);
+    try {
+      const result = await placeOrder(orderData);
+      recordTransaction(orderData, "BUY", "auto", result, price);
+    } catch (err) {
+      console.error("Auto trade error:", err);
     }
   };
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (!event.target.closest('.stock-selector-container')) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Manual Orders
+  // Manual order functions
   const handleBuy = async () => {
     if (!data?.length) return;
     const latest = data[data.length - 1];
-
     const orderData = {
       order_id: `MANUAL_BUY_${Date.now()}`,
       user_id: "68b17a50dba7d93a5ac110e7",
@@ -272,13 +252,12 @@ const CandlestickChart = ({ data, symbol }) => {
       order_type: "MARKET",
       product: "MIS",
       status: "COMPLETE",
-      average_price: latest.close,
+      average_price: latest.Close || latest.close,
     };
 
     try {
       const result = await placeOrder(orderData);
-      recordTransaction(orderData, "BUY", "manual", result, latest.close);
-      console.log(`✅ Bought ${quantity} shares of ${selectedStock || symbol} at ₹${latest.close}`);
+      recordTransaction(orderData, "BUY", "manual", result, latest.Close || latest.close);
     } catch (err) {
       console.error("Buy order error:", err);
     }
@@ -287,7 +266,6 @@ const CandlestickChart = ({ data, symbol }) => {
   const handleSell = async () => {
     if (!data?.length) return;
     const latest = data[data.length - 1];
-
     const orderData = {
       order_id: `MANUAL_SELL_${Date.now()}`,
       user_id: "68b17a50dba7d93a5ac110e7",
@@ -298,13 +276,12 @@ const CandlestickChart = ({ data, symbol }) => {
       order_type: "MARKET",
       product: "MIS",
       status: "COMPLETE",
-      average_price: latest.close,
+      average_price: latest.Close || latest.close,
     };
 
     try {
       const result = await placeOrder(orderData);
-      recordTransaction(orderData, "SELL", "manual", result, latest.close);
-      console.log(`✅ Sold ${quantity} shares of ${selectedStock || symbol} at ₹${latest.close}`);
+      recordTransaction(orderData, "SELL", "manual", result, latest.Close || latest.close);
     } catch (err) {
       console.error("Sell order error:", err);
     }
@@ -312,12 +289,11 @@ const CandlestickChart = ({ data, symbol }) => {
 
   const recordTransaction = (orderData, type, mode, result, fallbackPrice) => {
     const executedPrice = result?.executed_price ?? orderData?.average_price ?? fallbackPrice ?? 0;
-
     const newTransaction = {
       type,
       price: executedPrice,
       time: result?.timestamp || new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
-      symbol: selectedStock || symbol,
+      symbol: orderData.symbol,
       orderData: {
         ...orderData,
         executed_at: result?.timestamp || new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
@@ -328,21 +304,36 @@ const CandlestickChart = ({ data, symbol }) => {
 
     setTransactionHistory((prev) => [...prev, newTransaction]);
     setCelebrate(
-      `✅ ${mode.toUpperCase()} ${type} executed: ${orderData.quantity} Qty ${selectedStock || symbol} @ ₹${executedPrice}`
+      `✅ ${mode.toUpperCase()} ${type} executed: ${orderData.quantity} Qty ${orderData.symbol} @ ₹${executedPrice}`
     );
   };
 
-  // Prepare chart data with trigger levels
+  // Fixed Sidebar Toggle Buttons - PROPER POSITIONING
+  const SidebarToggleButton = ({ side, isVisible, onClick }) => (
+    <button
+      onClick={onClick}
+      className={`absolute top-1/2 transform -translate-y-1/2 z-50 w-8 h-16 bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-all duration-300 shadow-lg border-0 ${
+        side === 'left' 
+          ? `left-0 rounded-r-lg ${isVisible ? '' : 'ml-0'}`
+          : `right-0 rounded-l-lg ${isVisible ? '' : 'mr-0'}`
+      }`}
+      style={{
+        left: side === 'left' && !isVisible ? '0' : 'auto',
+        right: side === 'right' && !isVisible ? '0' : 'auto',
+      }}
+    >
+      <span className="text-lg font-bold">
+        {side === 'left' ? (isVisible ? '‹' : '›') : (isVisible ? '›' : '‹')}
+      </span>
+    </button>
+  );
+
   if (!data?.length) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 text-gray-600 rounded-xl shadow-lg p-6 border"
-        style={{
-          backgroundColor: 'white',
-          borderColor: `${primaryColor}20`
-        }}>
+      <div className="flex flex-col items-center justify-center h-96 text-gray-600 rounded-xl shadow-lg p-6 border border-gray-200 bg-white">
         <div className="text-6xl mb-4">📊</div>
         <h3 className="text-xl font-semibold mb-2">No chart data available</h3>
-        <p style={{ color: primaryColor }}>Select a different symbol or timeframe</p>
+        <p className="text-blue-500">Select a different symbol or timeframe</p>
       </div>
     );
   }
@@ -363,350 +354,411 @@ const CandlestickChart = ({ data, symbol }) => {
           close: closes,
           type: "candlestick",
           name: selectedStock || symbol,
-          increasing: { line: { color: "green" }, fillcolor: "green" },
-          decreasing: { line: { color: "red" }, fillcolor: "red" },
+          increasing: { line: { color: "#00C853" }, fillcolor: "#00C853" },
+          decreasing: { line: { color: "#FF5252" }, fillcolor: "#FF5252" },
         }
       : {
           x: dates,
           y: closes,
           type: "scatter",
           mode: "lines",
-          line: { color: "deepgreen", width: 2 },
+          line: { color: "#42a5f5", width: 2 },
           name: selectedStock || symbol,
         };
 
-  // Create traces for trigger levels (horizontal lines) with different colors for BUY/SELL
-  const levelTraces = triggerLevels.map((trigger, index) => {
-    const { level, action } = trigger;
-    const isTriggered = triggeredLevels.some(t => t.level === level && t.action === action);
-    
-    const lineColor = action === 'BUY' ? 
-      (isTriggered ? '#00ff00' : '#008800') : 
-      (isTriggered ? '#ff0000' : '#880000');
-    
+  // Create traces for trigger levels
+  const levelTraces = triggerLevels.map((level) => {
+    const isTriggered = triggeredLevels.includes(level);
     return {
       x: [dates[0], dates[dates.length - 1]],
       y: [level, level],
       type: 'scatter',
       mode: 'lines',
-      name: `${action}: ₹${level}`,
+      name: `Level: ₹${level}`,
       line: {
-        color: lineColor,
-        width: 3,
-        dash: isTriggered ? 'solid' : 'dash'
+        color: isTriggered ? '#ff4444' : '#6666ff',
+        width: 1.5,
+        dash: 'dash'
       },
-      hoverinfo: 'y+name'
+      hoverinfo: 'name+y'
     };
   });
 
-  // Create traces for triggered points (dots on the latest price)
-  const triggerPointTraces = triggeredLevels.map((trigger, index) => {
-    const { level, action } = trigger;
+  const triggerPointTraces = triggeredLevels.map((level) => {
     const latestDate = dates[dates.length - 1];
-    
     return {
       x: [latestDate],
       y: [level],
       type: 'scatter',
-      mode: 'markers+text',
-      name: `Triggered: ${action} @ ₹${level}`,
-      text: [action === 'BUY' ? '🟢' : '🔴'],
-      textposition: 'top center',
+      mode: 'markers',
+      name: `Triggered: ₹${level}`,
       marker: {
-        color: action === 'BUY' ? '#00ff00' : '#ff0000',
-        size: 15,
-        symbol: 'diamond'
+        color: '#ff4444',
+        size: 8,
+        symbol: 'star'
       },
       showlegend: false,
-      hoverinfo: 'y+name'
+      hoverinfo: 'name+y'
     };
   });
 
-  const allTraces = [priceTrace, ...levelTraces, ...triggerPointTraces];
+  const technicalTraces = generateTechnicalTraces();
+  const allTraces = [priceTrace, ...levelTraces, ...triggerPointTraces, ...technicalTraces];
+
+  // Layout configuration - WHITE MODE
+  const layout = {
+    dragmode: "pan",
+    margin: { t: 10, r: 10, b: 30, l: 50 },
+    paper_bgcolor: "white",
+    plot_bgcolor: "white",
+    font: { color: "#374151", size: 11 },
+    xaxis: { 
+      type: "date", 
+      rangeslider: { visible: false },
+      gridcolor: "#e5e7eb",
+      linecolor: "#d1d5db",
+      showgrid: true,
+      tickformat: '%H:%M',
+      tickangle: -45,
+      tickcolor: '#6b7280'
+    },
+    yaxis: { 
+      title: '',
+      side: 'right',
+      gridcolor: "#e5e7eb",
+      linecolor: "#d1d5db",
+      showgrid: true,
+      fixedrange: false,
+      tickcolor: '#6b7280'
+    },
+    yaxis2: {
+      title: 'Volume',
+      side: 'left',
+      gridcolor: "#e5e7eb",
+      linecolor: "#d1d5db",
+      showgrid: true,
+      overlaying: 'y',
+      position: 0.0
+    },
+    showlegend: false,
+    hovermode: 'x unified',
+  };
 
   return (
-    <div className="w-full shadow-lg rounded-xl p-4 border"
-      style={{
-        backgroundColor: 'white',
-        borderColor: `${primaryColor}20`
-      }}>
+    <div 
+      ref={chartRef}
+      className={`h-screen flex bg-gray-50 relative overflow-hidden ${
+        isFullscreen ? 'fixed inset-0 z-50 bg-white' : 'relative'
+      }`}
+    >
       <Celebration trigger={celebrate} />
       
-      {/* Excel File Upload Section */}
-      <div className="mb-4 p-3 rounded-lg border" style={{ 
-        backgroundColor: `${primaryColor}05`,
-        borderColor: `${primaryColor}20`
-      }}>
-        <label className="block text-sm font-medium mb-2" style={{ color: primaryColor }}>
-          📁 Upload Stock Levels Excel File
-        </label>
-        <p className="text-xs text-gray-600 mb-2">
-          Required columns: <strong>"stock name"</strong> and <strong>"levels"</strong><br />
-          Optional column: <strong>"action"</strong> (BUY/SELL - defaults to BUY)
-        </p>
-        <input
-          type="file"
-          accept=".xlsx,.xls"
-          onChange={handleFileUpload}
-          className="w-full px-3 py-2 border rounded-md text-sm mb-2"
-          style={{
-            borderColor: `${primaryColor}40`,
-            backgroundColor: 'white'
-          }}
-        />
-        
-        {excelData.length > 0 && (
-          <div className="text-xs text-green-600 mb-2">
-            ✅ Loaded {excelData.length} stock levels
+      {/* Left Sidebar - FIXED WIDTH AND POSITION */}
+      <div 
+        className={`bg-white border-r border-gray-200 transition-all duration-300 flex flex-col overflow-hidden ${
+          leftSidebarVisible ? 'w-80 opacity-100' : 'w-0 opacity-0'
+        }`}
+      >
+        {/* Sidebar Header */}
+        <div className="p-4 border-b border-gray-200 bg-blue-50">
+          <div className="flex items-center justify-between">
+            <h3 className="text-gray-800 font-semibold text-lg">TRADING PANEL</h3>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm px-3 py-1 rounded-full ${
+                tradingMode === "auto" ? "bg-green-500 text-white" : "bg-gray-500 text-white"
+              }`}>
+                {tradingMode.toUpperCase()}
+              </span>
+            </div>
           </div>
-        )}
-        
-        {/* Stock Selection with Search */}
-        {excelData.length > 0 && (
-          <div className="stock-selector-container relative">
-            <label className="block text-sm font-medium mb-2" style={{ color: primaryColor }}>
-              📈 Select Stock to Plot Levels
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {/* Excel Upload */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              📊 Excel Data Import
             </label>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileUpload}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
             
-            {/* Search Input */}
-            <div className="relative mb-1">
-              <input
-                type="text"
-                placeholder="Search stocks..."
-                value={searchTerm}
-                onChange={handleSearchChange}
-                onFocus={() => setIsDropdownOpen(true)}
-                className="w-full px-3 py-2 pl-9 border rounded-md text-sm"
-                style={{
-                  borderColor: `${primaryColor}40`,
-                  backgroundColor: 'white',
-                  color: '#1f2937'
-                }}
-              />
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                🔍
-              </div>
-              {searchTerm && (
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setIsDropdownOpen(true);
-                  }}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            {excelData.length > 0 && (
+              <div className="mt-3">
+                <select
+                  value={selectedStock}
+                  onChange={(e) => setSelectedStock(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
                 >
-                  ✕
-                </button>
-              )}
+                  <option value="">Select stock from Excel</option>
+                  {[...new Set(excelData.map(item => item.symbol))].map(symbol => (
+                    <option key={symbol} value={symbol}>{symbol}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Quick Trade Buttons */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <button
+                onClick={handleBuy}
+                className="py-3 bg-green-500 hover:bg-green-600 text-white text-base font-bold rounded-lg transition-colors shadow-md"
+              >
+                🟢 BUY
+              </button>
+              <button
+                onClick={handleSell}
+                className="py-3 bg-red-500 hover:bg-red-600 text-white text-base font-bold rounded-lg transition-colors shadow-md"
+              >
+                🔴 SELL
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-3 mb-4">
+              <label className="text-sm font-medium text-gray-700">Quantity:</label>
+              <input
+                type="number"
+                min="1"
+                value={quantity}
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-800 focus:ring-2 focus:ring-blue-500"
+              />
             </div>
 
-            {/* Dropdown with search results */}
-            {isDropdownOpen && filteredStocks.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                {filteredStocks.map(stock => (
-                  <div
-                    key={stock}
-                    onClick={() => handleStockSelect(stock)}
-                    className={`px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm ${
-                      selectedStock === stock ? 'bg-blue-100 text-blue-800' : 'text-gray-700'
-                    }`}
-                  >
-                    {stock}
+            <TradingModeToggle
+              setTradingMode={setTradingMode}
+            />
+          </div>
+
+          {/* Technical Indicators */}
+          <div className="mb-6">
+            <TechnicalIndicatorsPanel
+              indicators={technicalIndicators}
+              setIndicators={setTechnicalIndicators}
+            />
+          </div>
+
+          {/* Trigger Levels */}
+          {triggerLevels.length > 0 && (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">🎯 Trigger Levels</h4>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {triggerLevels.map(level => (
+                  <div key={level} className={`flex justify-between items-center text-sm p-3 rounded-lg ${
+                    triggeredLevels.includes(level) 
+                      ? 'bg-red-100 text-red-800 border border-red-300' 
+                      : 'bg-white text-blue-800 border border-blue-200'
+                  }`}>
+                    <span className="font-medium">₹{level}</span>
+                    {triggeredLevels.includes(level) && (
+                      <span className="text-red-500 font-bold">● TRIGGERED</span>
+                    )}
                   </div>
                 ))}
               </div>
-            )}
-
-            {/* No results message */}
-            {isDropdownOpen && searchTerm && filteredStocks.length === 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
-                <div className="px-3 py-2 text-sm text-gray-500">
-                  No stocks found for "{searchTerm}"
-                </div>
-              </div>
-            )}
-
-            {/* Selected stock info */}
-            {selectedStock && (
-              <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
-                <span className="font-medium text-green-800">Selected:</span> {selectedStock}
-                {triggerLevels.length > 0 && (
-                  <span className="text-green-600 ml-2">
-                    ({triggerLevels.length} level{triggerLevels.length !== 1 ? 's' : ''} loaded)
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <TradingModeToggle
-        symbol={selectedStock || symbol}
-        tradingMode={tradingMode}
-        setTradingMode={setTradingMode}
-      />
-
-      {/* Quantity Selector */}
-      <div className="flex items-center gap-2 mb-4">
-        <label style={{ color: primaryColor }}>Qty:</label>
-        <input
-          type="number"
-          min="1"
-          value={quantity}
-          onChange={(e) => setQuantity(Number(e.target.value))}
-          className="w-20 px-2 py-1 rounded border transition-colors"
-          style={{
-            backgroundColor: 'white',
-            color: '#1f2937',
-            borderColor: `${primaryColor}40`,
-          }}
-        />
-        <span className="text-xs text-gray-500 ml-2">
-          (Used for auto orders)
-        </span>
-      </div>
-
-      <SignalDisplay
-        executingOrder={executingOrder}
-        tradingMode={tradingMode}
-        handleBuy={handleBuy}
-        handleSell={handleSell}
-        triggerLevels={triggerLevels}
-        triggeredLevels={triggeredLevels}
-        selectedStock={selectedStock}
-        autoOrders={autoOrders}
-      />
-
-      <ChartControls
-        chartType={chartType}
-        setChartType={setChartType}
-        chartTypes={[
-          { value: "candlestick", label: "Candlestick" },
-          { value: "line", label: "Line" },
-        ]}
-        tradingMode={tradingMode}
-        handleBuy={handleBuy}
-        handleSell={handleSell}
-      />
-
-      <PriceSummary opens={opens} highs={highs} lows={lows} closes={closes} />
-
-      {/* Auto Orders History */}
-      {autoOrders.length > 0 && (
-        <div className="mb-4 p-3 rounded-lg border" style={{ 
-          backgroundColor: `${primaryColor}05`,
-          borderColor: `${primaryColor}20`
-        }}>
-          <h4 className="font-medium mb-2" style={{ color: primaryColor }}>
-             Auto Order History
-          </h4>
-          <div className="max-h-40 overflow-y-auto">
-            {autoOrders.slice().reverse().map((order, index) => (
-              <div key={index} className="flex justify-between items-center py-1 border-b border-gray-200 last:border-b-0">
-                <div>
-                  <span className={`font-medium ${order.action === 'BUY' ? 'text-green-600' : 'text-red-600'}`}>
-                    {order.action}
-                  </span>
-                  <span className="text-sm ml-2">{order.symbol}</span>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm">Qty: {order.quantity}</div>
-                  <div className="text-xs text-gray-500">₹{order.level}</div>
-                </div>
-                <div className="text-xs text-gray-400">{order.timestamp}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Trigger Levels Information */}
-      {triggerLevels.length > 0 && (
-        <div className="mb-4 p-3 rounded-lg border" style={{ 
-          backgroundColor: `${primaryColor}05`,
-          borderColor: `${primaryColor}20`
-        }}>
-          <h4 className="font-medium mb-2" style={{ color: primaryColor }}>
-            🎯 Trigger Levels for {selectedStock}
-          </h4>
-          <div className="flex flex-wrap gap-2">
-            {triggerLevels.map((trigger, index) => {
-              const { level, action } = trigger;
-              const isTriggered = triggeredLevels.some(t => t.level === level && t.action === action);
-              
-              return (
-                <span
-                  key={`${level}-${action}`}
-                  className={`px-3 py-1 rounded text-sm font-medium ${
-                    isTriggered 
-                      ? action === 'BUY' 
-                        ? 'bg-green-100 text-green-800 border-2 border-green-400' 
-                        : 'bg-red-100 text-red-800 border-2 border-red-400'
-                      : action === 'BUY'
-                        ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                        : 'bg-orange-100 text-orange-800 border border-orange-300'
-                  }`}
-                >
-                  {action} @ ₹{level} {isTriggered && '🎯'}
-                </span>
-              );
-            })}
-          </div>
-          {triggeredLevels.length > 0 && (
-            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
-              <p className="text-yellow-700 text-sm font-medium">
-                ⚡ {triggeredLevels.length} level() triggered! {tradingMode === 'auto' ? 'Auto orders placed.' : 'Manual mode - place orders manually.'}
-              </p>
             </div>
           )}
         </div>
-      )}
-
-      {/* Chart Container */}
-      <div className="rounded-xl overflow-hidden border" style={{ borderColor: `${primaryColor}20` }}>
-        <Plot
-          data={allTraces}
-          layout={{
-            dragmode: "zoom",
-            margin: { t: 25, r: 25, b: 40, l: 60 },
-            paper_bgcolor: "white",
-            plot_bgcolor: "white",
-            font: { color: "#374151" },
-            xaxis: { 
-              type: "date", 
-              rangeslider: { visible: false },
-              gridcolor: `${primaryColor}10`,
-              linecolor: `${primaryColor}30`
-            },
-            yaxis: { 
-              autorange: true,
-              gridcolor: `${primaryColor}10`,
-              linecolor: `${primaryColor}30`,
-              title: {
-                text: 'Price (₹)',
-                font: { color: primaryColor }
-              }
-            },
-            showlegend: true,
-            legend: {
-              x: 0,
-              y: 1.1,
-              orientation: 'h',
-              bgcolor: 'rgba(255,255,255,0.8)'
-            },
-            title: {
-              text: `${selectedStock || symbol} - Price Chart with Auto Trading${tradingMode === 'auto' ? ' (AUTO MODE)' : ''}`,
-              font: { color: primaryColor, size: 16 }
-            }
-          }}
-          style={{ width: "100%", height: "500px" }}
-          config={{ 
-            responsive: true,
-            displayModeBar: true,
-            displaylogo: false
-          }}
-        />
       </div>
+
+      {/* Left Sidebar Toggle Button - FIXED POSITION */}
+      <SidebarToggleButton 
+        side="left" 
+        isVisible={leftSidebarVisible}
+        onClick={() => setLeftSidebarVisible(!leftSidebarVisible)}
+      />
+
+      {/* Main Chart Area - FIXED LAYOUT */}
+      <div className="flex-1 flex flex-col bg-white relative min-w-0">
+        {/* Chart Header Bar */}
+        <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 shadow-sm">
+          <div className="flex items-center gap-4">
+            <span className="text-gray-800 font-bold text-xl">{selectedStock || symbol}</span>
+            <span className="text-green-600 font-mono text-xl">
+              ₹{closes[closes.length - 1]?.toFixed(2)}
+            </span>
+            <span className={`text-sm px-3 py-1 rounded-full ${
+              closes[closes.length - 1] >= opens[opens.length - 1] 
+                ? 'bg-green-100 text-green-800 border border-green-200' 
+                : 'bg-red-100 text-red-800 border border-red-200'
+            }`}>
+              {((closes[closes.length - 1] - opens[opens.length - 1]) / opens[opens.length - 1] * 100).toFixed(2)}%
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={toggleFullscreen}
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {isFullscreen ? '📱 Exit Fullscreen' : '🖥️ Fullscreen'}
+            </button>
+
+            <ChartControls
+              chartType={chartType}
+              setChartType={setChartType}
+              chartTypes={[
+                { value: "candlestick", label: "Candlestick" },
+                { value: "line", label: "Line Chart" },
+              ]}
+            />
+          </div>
+        </div>
+
+        {/* Main Chart - FIXED HEIGHT */}
+        <div className="flex-1 relative min-h-0" ref={plotDivRef}>
+          <Plot
+            data={allTraces}
+            layout={layout}
+            style={{ width: "100%", height: "100%" }}
+            config={{ 
+              responsive: true,
+              displayModeBar: true,
+              modeBarButtonsToAdd: [
+                'drawline',
+                'drawopenpath', 
+                'drawclosedpath',
+                'drawcircle',
+                'drawrect',
+                'eraseshape'
+              ],
+              modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d'],
+              displaylogo: false,
+              scrollZoom: true,
+              doubleClick: 'reset'
+            }}
+          />
+        </div>
+
+        {/* Bottom Status Bar */}
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
+          <div className="flex justify-between items-center text-sm text-gray-600">
+            <div className="flex items-center gap-6">
+              <span>Open: <strong className="text-gray-800">₹{opens[opens.length - 1]?.toFixed(2)}</strong></span>
+              <span>High: <strong className="text-gray-800">₹{Math.max(...highs).toFixed(2)}</strong></span>
+              <span>Low: <strong className="text-gray-800">₹{Math.min(...lows).toFixed(2)}</strong></span>
+              <span>Close: <strong className="text-gray-800">₹{closes[closes.length - 1]?.toFixed(2)}</strong></span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span>Mode: <strong className={tradingMode === "auto" ? "text-green-600 font-bold" : "text-blue-600 font-bold"}>
+                {tradingMode.toUpperCase()}
+              </strong></span>
+              <span>Last Update: {new Date().toLocaleTimeString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Sidebar - FIXED WIDTH AND POSITION */}
+      <div 
+        className={`bg-white border-l border-gray-200 transition-all duration-300 flex flex-col overflow-hidden ${
+          rightSidebarVisible ? 'w-80 opacity-100' : 'w-0 opacity-0'
+        }`}
+      >
+        {/* Sidebar Header */}
+        <div className="p-4 border-b border-gray-200 bg-blue-50">
+          <h3 className="text-gray-800 font-semibold text-lg">TRADE INFORMATION</h3>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {/* Position Info */}
+          <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">📈 Current Position</h4>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Symbol:</span>
+                <span className="text-gray-800 font-semibold">{selectedStock || symbol}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Last Price:</span>
+                <span className="text-green-600 font-bold">₹{closes[closes.length - 1]?.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Daily Change:</span>
+                <span className={`font-bold ${
+                  closes[closes.length - 1] >= opens[opens.length - 1] ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {((closes[closes.length - 1] - opens[opens.length - 1]) / opens[opens.length - 1] * 100).toFixed(2)}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Transaction History */}
+          <div className="mb-6">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">📊 Recent Trades</h4>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {transactionHistory.slice(-8).reverse().map((transaction, index) => (
+                <div key={index} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className={`font-bold text-sm ${
+                      transaction.type === 'BUY' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {transaction.type}
+                    </span>
+                    <span className="text-gray-800 font-bold">₹{transaction.price?.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-gray-500">
+                    <span>{transaction.symbol}</span>
+                    <span>{transaction.time.split(' ')[1]}</span>
+                  </div>
+                  <div className="text-right mt-1">
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      transaction.mode === 'auto' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {transaction.mode}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {transactionHistory.length === 0 && (
+                <div className="text-center text-gray-500 text-sm py-8 bg-gray-50 rounded-lg border border-gray-200">
+                  No trades executed yet
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Market Statistics */}
+          <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <h4 className="text-sm font-medium text-gray-700 mb-3">📋 Market Statistics</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Session High:</span>
+                <span className="text-gray-800 font-medium">₹{Math.max(...highs).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Session Low:</span>
+                <span className="text-gray-800 font-medium">₹{Math.min(...lows).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Volume Avg:</span>
+                <span className="text-gray-800 font-medium">
+                  {data[0]?.Volume ? (data.reduce((sum, d) => sum + (d.Volume || 0), 0) / data.length).toFixed(0) : 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Levels Triggered:</span>
+                <span className="text-orange-600 font-bold">{triggeredLevels.length}/{triggerLevels.length}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Sidebar Toggle Button - FIXED POSITION */}
+      <SidebarToggleButton 
+        side="right" 
+        isVisible={rightSidebarVisible}
+        onClick={() => setRightSidebarVisible(!rightSidebarVisible)}
+      />
     </div>
   );
 };
