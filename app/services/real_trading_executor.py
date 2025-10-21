@@ -1,33 +1,49 @@
-# services/real_trading_executor.py
-from datetime import datetime
-from typing import Dict
-from app.schemas.order import OrderRequest
-from database.collections import strategy_orders_collection
+import pandas as pd
+import yfinance as yf
 
-class RealTradingExecutor:
-    async def execute_real_trade(self, user_id: str, strategy_signal: Dict):
-        """Execute real trade through your existing order system"""
-        
-        # Convert strategy signal to your OrderRequest format
-        order_request = OrderRequest(
-            symbol=strategy_signal['symbol'],
-            transaction_type=strategy_signal['action'].upper(),
-            order_type="MARKET",
-            quantity=strategy_signal['quantity'],
-            product="MIS"
-        )
-        
-        # Use your existing order placement
-        order_response = await self._place_order(order_request)
-        
-        # Link strategy with real order
-        strategy_order = {
-            'user_id': user_id,
-            'strategy_id': strategy_signal['strategy_id'],
-            'order_id': order_response.order_id,
-            'signal_data': strategy_signal,
-            'executed_at': datetime.utcnow()
-        }
-        
-        await strategy_orders_collection.insert_one(strategy_order)
-        return order_response
+# === Step 1: Load Excel file ===
+file_path = "weekly (1).xlsx"   # adjust path if needed
+df = pd.read_excel(file_path, sheet_name="Sheet1")
+
+# === Step 2: Clean and standardize column names ===
+df.columns = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
+
+# Handle potential naming mismatches
+if "stock_name" not in df.columns and "stock name" in df.columns:
+    df.rename(columns={"stock name": "stock_name"}, inplace=True)
+if "levels" not in df.columns and "level" in df.columns:
+    df.rename(columns={"level": "levels"}, inplace=True)
+
+# === Step 3: Fetch current prices using Yahoo Finance ===
+current_prices = []
+
+for stock in df["stock_name"]:
+    try:
+        # Yahoo Finance usually uses ".NS" for NSE stocks
+        ticker = stock.strip().upper()
+        if not ticker.endswith(".NS"):
+            ticker += ".NS"
+
+        data = yf.Ticker(ticker).history(period="1d")
+        if not data.empty:
+            current_price = data["Close"].iloc[-1]
+        else:
+            current_price = None
+            print(f"⚠️ No data for {stock}")
+    except Exception as e:
+        current_price = None
+        print(f"⚠️ Could not fetch price for {stock}: {e}")
+
+    current_prices.append(current_price)
+
+# === Step 4: Add calculated columns ===
+df["current_price"] = current_prices
+df["profit_loss"] = df["current_price"] - df["levels"]
+df["percent_change"] = (df["profit_loss"] / df["levels"]) * 100
+
+# === Step 5: Save the new Excel file ===
+output_path = "weekly_with_current_price_yahoo.xlsx"
+df.to_excel(output_path, index=False)
+
+print(f"✅ Updated Excel saved as '{output_path}'")
+print("Columns added: current_price, profit_loss, percent_change")

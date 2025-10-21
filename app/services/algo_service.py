@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class AlgorithmService:
     def __init__(self):
         # Import here to avoid circular imports
-        from .fake_algorithm import TradingAlgorithm
+        from .price_algorithm import TradingAlgorithm
         self.algorithm = TradingAlgorithm()
     
     def analyze_symbols(self, symbols: List[str]) -> Dict:

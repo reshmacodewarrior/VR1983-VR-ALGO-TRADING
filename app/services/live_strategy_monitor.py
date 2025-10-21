@@ -35,3 +35,5 @@ class LiveStrategyMonitor:
         
         # Store in paper trades collection
         await self.paper_trades_collection.insert_one(paper_trade)
+    
+    

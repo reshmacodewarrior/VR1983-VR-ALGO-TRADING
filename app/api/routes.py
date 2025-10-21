@@ -10,7 +10,6 @@ from .password import router as password_router
 from .watchlist import router as watchlist_router
 from .order import router as order_router   
 from .levels import router as levels_router 
-from .signal import router as signal_router
 from .csv_file import router as csv_router
 from .strategy_marketplace import router as strategy_marketplace_router
 from .strategy_editor import router as strategy_editor_router   
@@ -26,7 +25,6 @@ api_router.include_router(password_router)
 api_router.include_router(watchlist_router)
 api_router.include_router(order_router)
 api_router.include_router(levels_router)
-api_router.include_router(signal_router)
 api_router.include_router(csv_router)
 api_router.include_router(strategy_marketplace_router)
 api_router.include_router(strategy_editor_router)
