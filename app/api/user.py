@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pymongo.errors import DuplicateKeyError, OperationFailure
-
+from middleware.role_middleware import require_admin, require_manager
 from database.collections import users_collection
 from schemas.user import User, UserInDB, EmailStr
 from services.user import (
@@ -70,7 +70,6 @@ async def authenticate_user(email: str, password: str):
         logger.error(f"Authentication error for {email}: {e}")
         return False
 
-# Add these endpoints to your existing router
 @router.get("/profile")
 async def get_user_profile(current_user: UserInDB = Depends(get_current_user)):
     try:
@@ -81,6 +80,7 @@ async def get_user_profile(current_user: UserInDB = Depends(get_current_user)):
             "email": current_user.email,
             "brokers": current_user.brokers,
             "mobile_no": current_user.mobile_no,
+            "role": current_user.role,  # Add role to profile
             "created_at": current_user.created_at
         }
     except JWTError as e:
@@ -108,8 +108,6 @@ async def signup(user: User):
             ]
         })
         
-        logger.info(f"Existing user check result: {existing_user is not None}")
-        
         if existing_user:
             if existing_user.get("email") == user.email:
                 logger.warning(f"Email already exists: {user.email}")
@@ -135,22 +133,23 @@ async def signup(user: User):
             "lastname": user.lastname,
             "email": user.email,
             "mobile_no": user.mobile_no,
-            "hashed_password": hashed_password,  # Make sure this matches your schema
+            "hashed_password": hashed_password,
             "brokers": [],
             "watchlist": [],
+            "role": user.role,  # Add role from request
             "created_at": created_at,
             "updated_at": updated_at,
             "refresh_token": None
         }
         
-        logger.info(f"Attempting to insert user data: {user_data['email']}")
         result = await users_collection.insert_one(user_data)
         
         logger.info(f"User created successfully with ID: {result.inserted_id}")
         return {
             "message": "User created successfully", 
             "user_id": str(result.inserted_id),
-            "email": user.email
+            "email": user.email,
+            "role": user.role
         }
     
     except HTTPException:
@@ -185,13 +184,15 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
                 detail="Incorrect username/email or password"
             )
         
-        # Create access token (7 days instead of 30 minutes)
-        access_token = create_access_token(data={"sub": user["email"]})
+        # Ensure role exists
+        if "role" not in user:
+            user["role"] = "user"
         
-        # Create refresh token (7 days from config)
+        # Create tokens
+        access_token = create_access_token(data={"sub": user["email"], "role": user["role"]})  # Add role to token
         refresh_token = create_refresh_token(data={"sub": user["email"]})
         
-        # Store refresh token in database
+        # Store refresh token
         await users_collection.update_one(
             {"email": user["email"]},
             {
@@ -208,13 +209,14 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "access_token_expires": 7 * 24 * 60 * 60,  # 7 days in seconds
+            "access_token_expires": 7 * 24 * 60 * 60,
             "refresh_token_expires": settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
             "user": {
                 "username": user["username"],   
                 "email": user["email"],
                 "firstname": user.get("firstname", ""),
-                "lastname": user.get("lastname", "")
+                "lastname": user.get("lastname", ""),
+                "role": user["role"]  # Add role to response
             }
         }
         
@@ -339,3 +341,85 @@ async def logout_all_devices(current_user: UserInDB = Depends(get_current_user))
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error during logout"
         )
+@router.get("/admin/users", dependencies=[Depends(require_admin)])
+async def get_all_users_admin(current_user: UserInDB = Depends(get_current_user)):
+    """Get all users (Admin only)"""
+    try:
+        users = await users_collection.find().to_list(length=100)
+        user_list = []
+        for user in users:
+            user["_id"] = str(user["_id"])
+            if "role" not in user:
+                user["role"] = "user"
+            user_list.append({
+                "id": user["_id"],
+                "username": user["username"],
+                "email": user["email"],
+                "role": user["role"],
+                "created_at": user.get("created_at")
+            })
+        
+        return user_list
+        
+    except Exception as e:
+        logger.error(f"Error fetching users: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch users"
+        )
+
+@router.put("/admin/users/{email}/role", dependencies=[Depends(require_admin)])
+async def update_user_role(
+    email: str, 
+    role_update: dict,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """Update user role (Admin only)"""
+    try:
+        new_role = role_update.get("role")
+        allowed_roles = ["user", "admin", "manager"]
+        
+        if new_role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Role must be one of {allowed_roles}"
+            )
+        
+        result = await users_collection.update_one(
+            {"email": email},
+            {"$set": {"role": new_role, "updated_at": datetime.now().isoformat()}}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        return {"message": f"User role updated to {new_role}"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user role: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user role"
+        )
+
+@router.get("/admin/dashboard", dependencies=[Depends(require_admin)])
+async def admin_dashboard(current_user: UserInDB = Depends(get_current_user)):
+    """Admin dashboard (Admin only)"""
+    return {
+        "message": "Welcome to Admin Dashboard",
+        "user_count": await users_collection.count_documents({}),
+        "your_role": current_user.role
+    }
+
+@router.get("/manager/dashboard", dependencies=[Depends(require_manager)])
+async def manager_dashboard(current_user: UserInDB = Depends(get_current_user)):
+    """Manager dashboard (Manager and Admin only)"""
+    return {
+        "message": "Welcome to Manager Dashboard",
+        "your_role": current_user.role
+    }

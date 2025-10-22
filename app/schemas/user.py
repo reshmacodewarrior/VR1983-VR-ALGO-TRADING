@@ -35,6 +35,15 @@ class User(BaseModel):
     brokers: Optional[list] = []
     watchlist: List[WatchlistItem] = []
     password: str = Field(..., min_length=8)
+    role: str = Field(default="user", description="User role: user, admin, manager")  # Add this line
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v):
+        allowed_roles = ["user", "admin", "manager"]
+        if v not in allowed_roles:
+            raise ValueError(f"Role must be one of {allowed_roles}")
+        return v
 
     @field_validator("password")
     @classmethod
@@ -64,10 +73,11 @@ class UserInDB(BaseModel):
     mobile_no: Optional[str] = None
     brokers: Optional[list] = []
     watchlist: List[WatchlistItem] = []
-    hashed_password: str  # Remove the alias="password"
+    hashed_password: str
+    role: str = Field(default="user")  # Add this line
     created_at: datetime
     updated_at: Optional[datetime] = None
-    refresh_token: Optional[str] = None  # Store refresh token if needed
+    refresh_token: Optional[str] = None
 
     # Add this validator for watchlist
     @field_validator("watchlist", mode="before")

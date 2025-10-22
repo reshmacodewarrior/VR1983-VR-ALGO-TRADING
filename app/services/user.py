@@ -92,3 +92,60 @@ async def verify_refresh_token(refresh_token: str) -> Optional[UserInDB]:
         return UserInDB(**user)
     except JWTError:
         raise credentials_exception
+    
+# services/user.py - Add these functions
+
+async def get_user_by_email(email: str) -> Optional[UserInDB]:
+    user = await users_collection.find_one({"email": email})
+    if user:
+        user["_id"] = str(user["_id"])
+        # Ensure role exists, default to "user" if not
+        if "role" not in user:
+            user["role"] = "user"
+        return UserInDB(**user)
+    return None
+
+async def update_user_role(email: str, role: str, current_user: UserInDB):
+    """Update user role (only admins can do this)"""
+    allowed_roles = ["user", "admin", "manager"]
+    if role not in allowed_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Role must be one of {allowed_roles}"
+        )
+    
+    # Check if current user is admin
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update user roles"
+        )
+    
+    result = await users_collection.update_one(
+        {"email": email},
+        {"$set": {"role": role, "updated_at": datetime.now().isoformat()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    return {"message": f"User role updated to {role}"}
+
+async def get_all_users(current_user: UserInDB):
+    """Get all users (admin only)"""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can view all users"
+        )
+    
+    users = await users_collection.find().to_list(length=100)
+    for user in users:
+        user["_id"] = str(user["_id"])
+        if "role" not in user:
+            user["role"] = "user"
+    
+    return [UserInDB(**user) for user in users]
