@@ -163,3 +163,16 @@ async def debug_user_structure(current_user: UserInDB = Depends(get_current_user
         "watchlist_value": user.get("watchlist", "FIELD_NOT_FOUND"),
         "full_user_structure": {k: type(v).__name__ for k, v in user.items()}
     }
+@router.get("/debug/sample-items")
+async def debug_sample_items(current_user: UserInDB = Depends(get_current_user)):
+    """Check what's actually stored in watchlist"""
+    user_id = ObjectId(current_user.id)
+    user = await users_collection.find_one({"_id": user_id})
+    
+    sample_items = user.get("watchlist", [])[:3]  # First 3 items
+    
+    return {
+        "sample_items": sample_items,
+        "first_item_type": type(sample_items[0]).__name__ if sample_items else "No items",
+        "first_item_structure": dict(sample_items[0]) if sample_items else None
+    }

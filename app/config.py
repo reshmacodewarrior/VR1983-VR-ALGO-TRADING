@@ -2,7 +2,8 @@ from pydantic_settings import BaseSettings
 from datetime import timedelta
 
 class Settings(BaseSettings):
-    SECRET_KEY: str ="f5a8341d33fbc6dd8a53e121f4fa0182547cfd212d6ced5fe71db943206b2976"
+    SECRET_KEY: str ="WtJyi_5IPAKKr1CUiyjszT5u9-rL7FTmAMW3v-QY0Do"
+    REFRESH_SECRET_KEY: str ="HvpSt5m-cPB3NaK0Oy6dKRinXOveuL9YnfD3kL0K3M4"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # 1 minute for testing
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7    # new: refresh token valid for 7 days

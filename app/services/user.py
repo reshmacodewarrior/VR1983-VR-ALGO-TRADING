@@ -11,10 +11,10 @@ from schemas.user import UserInDB
 from config import settings
 
 SECRET_KEY = settings.SECRET_KEY 
+REFRESH_SECRET_KEY = settings.REFRESH_SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/user/login")
-REFRESH_SECRET_KEY = SECRET_KEY + "_refresh_secret"
 
 def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password, hashed_password)

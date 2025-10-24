@@ -22,6 +22,8 @@ watchlist_collection = db.get_collection("watchlist")
 strategies_collection = db.get_collection("strategies")
 backtests_collection = db.get_collection("backtests")
 strategy_orders_collection = db.get_collection("strategy_orders")
+trading_signals_collection = db.get_collection("trading_signals")
+user_signals_collection = db.get_collection("user_signals")
 
 # database/collections.py - UPDATE WITH USER-BASED OPERATIONS
 async def create_strategy(strategy_data: Dict[str, Any]) -> str:

@@ -53,7 +53,7 @@ const Header = () => {
         stockAPI.getStock("^NSEBANK", period, interval),
         stockAPI.getStock("^BSESN", period, interval),
         stockAPI.getStock("^CNXAUTO", period, interval),
-        stockAPI.getStock("TATAMOTORS.NS", period, interval),
+        stockAPI.getStock("TATAMOTORS.BO", period, interval),
       ]);
 
       setIndicesData({
