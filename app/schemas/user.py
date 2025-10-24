@@ -1,6 +1,7 @@
+# schemas/user.py
 from datetime import datetime
 import re
-from typing import List, Optional, Annotated
+from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator, EmailStr, ConfigDict
 from bson import ObjectId
 
@@ -17,7 +18,7 @@ class UserUpdate(BaseModel):
 
 class WatchlistItem(BaseModel):
     symbol: str = Field(..., description="The trading symbol, e.g., 'RELIANCE', 'INFY'")
-    exchange: Optional[str] = Field("NSE", description="The exchange, e.g., 'NSE', 'BSE'") # Optional field
+    exchange: Optional[str] = Field("NSE", description="The exchange, e.g., 'NSE', 'BSE'")
 
     class Config:
         from_attributes = True
@@ -30,17 +31,17 @@ class User(BaseModel):
     mobile_no: Optional[str] = Field(
         default=None, 
         pattern=r"^\+?[0-9]{10,15}$", 
-        description="Mobile number in international format (e.g., +919876543210)"
+        description="Mobile number in international format"
     )
     brokers: Optional[list] = []
     watchlist: List[WatchlistItem] = []
     password: str = Field(..., min_length=8)
-    role: str = Field(default="user", description="User role: user, admin, manager")  # Add this line
+    role: str = Field(default="user", description="User role: user, agency, admin")
 
     @field_validator("role")
     @classmethod
     def validate_role(cls, v):
-        allowed_roles = ["user", "admin", "manager"]
+        allowed_roles = ["user", "agency", "admin"]
         if v not in allowed_roles:
             raise ValueError(f"Role must be one of {allowed_roles}")
         return v
@@ -58,7 +59,6 @@ class User(BaseModel):
             raise ValueError("Password must contain at least one lowercase letter")
         return v
 
-
 class UserInDB(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -74,19 +74,17 @@ class UserInDB(BaseModel):
     brokers: Optional[list] = []
     watchlist: List[WatchlistItem] = []
     hashed_password: str
-    role: str = Field(default="user")  # Add this line
+    role: str = Field(default="user")
     created_at: datetime
     updated_at: Optional[datetime] = None
     refresh_token: Optional[str] = None
 
-    # Add this validator for watchlist
     @field_validator("watchlist", mode="before")
     @classmethod
     def convert_watchlist(cls, v):
         if v is None:
             return []
         if isinstance(v, list):
-            # Convert each item to WatchlistItem if it's a dict
             return [WatchlistItem(**item) if isinstance(item, dict) else item for item in v]
         return v
 

@@ -16,5 +16,5 @@ def require_roles(allowed_roles: List[str]):
 
 # Specific role checkers for convenience
 require_admin = require_roles(["admin"])
-require_manager = require_roles(["manager", "admin"])
-require_user = require_roles(["user", "manager", "admin"])
+require_agency = require_roles(["agency", "admin"])
+require_user = require_roles(["user", "agency", "admin"])

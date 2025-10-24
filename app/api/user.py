@@ -1,104 +1,37 @@
+# api/user_api.py
 import os
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import HTMLResponse
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.templating import Jinja2Templates
-from datetime import datetime, timedelta
+from fastapi.security import OAuth2PasswordRequestForm
+from datetime import datetime
 from typing import Optional, Dict, Any
 from jose import JWTError, jwt
-from passlib.context import CryptContext
-from pymongo.errors import DuplicateKeyError, OperationFailure
-from middleware.role_middleware import require_admin, require_manager
 from database.collections import users_collection
-from schemas.user import User, UserInDB, EmailStr
+from schemas.user import User, UserInDB, Token, UserUpdate
 from services.user import (
     verify_password, 
     get_password_hash, 
     create_access_token, 
     get_current_user,
     create_refresh_token,
-    verify_refresh_token
+    verify_refresh_token,
+    get_all_users,
+    update_user_role,
+    get_users_by_role,
+    get_user_stats
 )
+from middleware.role_middleware import require_admin, require_agency, require_user
 from config import settings
 
-# Configure logging
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/user", tags=["users"])
 
-# Custom Exceptions
-class UserAlreadyExistsError(Exception):
-    def __init__(self, field: str, value: str):
-        self.field = field
-        self.value = value
-        super().__init__(f"User with {field} '{value}' already exists")
+# ========== AUTHENTICATION ENDPOINTS ==========
 
-class UserNotFoundError(Exception):
-    def __init__(self, identifier: str):
-        super().__init__(f"User '{identifier}' not found")
-
-class InvalidCredentialsError(Exception):
-    pass
-
-class DatabaseOperationError(Exception):
-    pass
-
-@router.get("/email")
-async def get_user_by_email(email: str) -> Optional[UserInDB]:
-    try:
-        user = await users_collection.find_one({"email": email})
-        if user:
-            user["_id"] = str(user["_id"])
-            return UserInDB(**user)
-        return None
-    except Exception as e:
-        logger.error(f"Error fetching user by email {email}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch user information"
-        )
-
-async def authenticate_user(email: str, password: str):
-    try:
-        user = await get_user_by_email(email)
-        if not user:
-            return False
-        if not verify_password(password, user.hashed_password):
-            return False
-        return user
-    except Exception as e:
-        logger.error(f"Authentication error for {email}: {e}")
-        return False
-
-@router.get("/profile")
-async def get_user_profile(current_user: UserInDB = Depends(get_current_user)):
-    try:
-        return {
-            "username": current_user.username,   
-            "firstname": current_user.firstname,
-            "lastname": current_user.lastname,
-            "email": current_user.email,
-            "brokers": current_user.brokers,
-            "mobile_no": current_user.mobile_no,
-            "role": current_user.role,  # Add role to profile
-            "created_at": current_user.created_at
-        }
-    except JWTError as e:
-        logger.warning(f"JWT error in profile endpoint: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token"
-        )
-    except Exception as e:
-        logger.error(f"Error fetching user profile: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch user profile"
-        )
 @router.post("/signup")
 async def signup(user: User):
     try:
-        logger.info(f"Signup attempt received - Email: {user.email}, Username: {user.username}")
+        logger.info(f"Signup attempt - Email: {user.email}, Username: {user.username}")
         
         # Check for existing user
         existing_user = await users_collection.find_one({
@@ -110,23 +43,18 @@ async def signup(user: User):
         
         if existing_user:
             if existing_user.get("email") == user.email:
-                logger.warning(f"Email already exists: {user.email}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Email already registered"
                 )
             else:
-                logger.warning(f"Username already exists: {user.username}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Username already taken"
                 )
         
-        # Hash password
+        # Hash password and create user
         hashed_password = get_password_hash(user.password)
-        created_at = datetime.now().isoformat()
-        updated_at = datetime.now().isoformat()
-        
         user_data = {
             "username": user.username,
             "firstname": user.firstname,
@@ -136,15 +64,14 @@ async def signup(user: User):
             "hashed_password": hashed_password,
             "brokers": [],
             "watchlist": [],
-            "role": user.role,  # Add role from request
-            "created_at": created_at,
-            "updated_at": updated_at,
+            "role": user.role,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
             "refresh_token": None
         }
         
         result = await users_collection.insert_one(user_data)
         
-        logger.info(f"User created successfully with ID: {result.inserted_id}")
         return {
             "message": "User created successfully", 
             "user_id": str(result.inserted_id),
@@ -155,11 +82,12 @@ async def signup(user: User):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error during signup: {str(e)}", exc_info=True)
+        logger.error(f"Signup error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Registration failed: {str(e)}"
         )
+
 @router.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     try:
@@ -170,15 +98,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             ]
         })
         
-        if not user:
-            logger.warning(f"Login attempt with non-existent user: {form_data.username}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username/email or password"
-            )
-        
-        if not verify_password(form_data.password, user["hashed_password"]):
-            logger.warning(f"Failed login attempt for user: {form_data.username}")
+        if not user or not verify_password(form_data.password, user["hashed_password"]):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username/email or password"
@@ -188,8 +108,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         if "role" not in user:
             user["role"] = "user"
         
-        # Create tokens
-        access_token = create_access_token(data={"sub": user["email"], "role": user["role"]})  # Add role to token
+        # Create tokens with role
+        access_token = create_access_token(data={"sub": user["email"], "role": user["role"]})
         refresh_token = create_refresh_token(data={"sub": user["email"]})
         
         # Store refresh token
@@ -204,148 +124,204 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             }
         )
         
-        logger.info(f"Successful login for user: {user['email']}")
+        logger.info(f"Successful login for: {user['email']}")
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "access_token_expires": 7 * 24 * 60 * 60,
-            "refresh_token_expires": settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
             "user": {
                 "username": user["username"],   
                 "email": user["email"],
                 "firstname": user.get("firstname", ""),
                 "lastname": user.get("lastname", ""),
-                "role": user["role"]  # Add role to response
+                "role": user["role"]
             }
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error during login: {e}")
+        logger.error(f"Login error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred during login"
+            detail="Login failed"
         )
 
-@router.post("/refresh")
-async def refresh_token(request: Request):
-    """
-    Get new access token using refresh token
-    """
+@router.get("/profile")
+async def get_user_profile(current_user: UserInDB = Depends(require_user)):
+    """Get current user profile"""
     try:
-        data = await request.json()
-        refresh_token = data.get("refresh_token")
-        
-        if not refresh_token:
+        return {
+            "id": current_user.id,
+            "username": current_user.username,   
+            "firstname": current_user.firstname,
+            "lastname": current_user.lastname,
+            "email": current_user.email,
+            "mobile_no": current_user.mobile_no,
+            "brokers": current_user.brokers,
+            "watchlist": current_user.watchlist,
+            "role": current_user.role,
+            "created_at": current_user.created_at
+        }
+    except Exception as e:
+        logger.error(f"Profile fetch error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch profile"
+        )
+
+@router.put("/profile")
+async def update_user_profile(
+    update_data: UserUpdate,
+    current_user: UserInDB = Depends(require_user)
+):
+    """Update user profile"""
+    try:
+        update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
+        if not update_dict:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Refresh token is required"
+                detail="No fields to update"
             )
         
-        # Verify refresh token and get user
-        user = await verify_refresh_token(refresh_token)
+        update_dict["updated_at"] = datetime.now().isoformat()
         
-        # Create new access token (7 days)
-        new_access_token = create_access_token(data={"sub": user.email})
-        
-        # Optionally create new refresh token (rotate refresh tokens)
-        new_refresh_token = create_refresh_token(data={"sub": user.email})
-        
-        # Update refresh token in database
-        await users_collection.update_one(
-            {"email": user.email},
-            {
-                "$set": {
-                    "refresh_token": new_refresh_token,
-                    "updated_at": datetime.now().isoformat()
-                }
-            }
+        result = await users_collection.update_one(
+            {"email": current_user.email},
+            {"$set": update_dict}
         )
         
-        logger.info(f"Token refreshed for user: {user.email}")
-        return {
-            "access_token": new_access_token,
-            "refresh_token": new_refresh_token,
-            "token_type": "bearer",
-            "access_token_expires": 7 * 24 * 60 * 60,
-            "refresh_token_expires": settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
-        }
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No changes made"
+            )
+        
+        return {"message": "Profile updated successfully"}
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error refreshing token: {e}")
+        logger.error(f"Profile update error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to refresh token"
+            detail="Failed to update profile"
         )
 
-@router.post("/logout")
-async def logout(
-    request: Request,
-    current_user: UserInDB = Depends(get_current_user)
-):
-    """
-    Logout user and invalidate refresh token
-    """
-    try:
-        # Get refresh token from request body if provided
-        data = await request.json()
-        refresh_token = data.get("refresh_token")
-        
-        # Remove refresh token from database
-        update_data = {"$unset": {"refresh_token": ""}}
-        if refresh_token:
-            # Only remove the specific refresh token
-            await users_collection.update_one(
-                {"email": current_user.email, "refresh_token": refresh_token},
-                update_data
-            )
-        else:
-            # Remove all refresh tokens for this user
-            await users_collection.update_one(
-                {"email": current_user.email},
-                update_data
-            )
-        
-        logger.info(f"User logged out: {current_user.email}")
-        return {"message": "Successfully logged out"}
-        
-    except Exception as e:
-        logger.error(f"Error during logout: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error during logout"
-        )
+# ========== ADMIN DASHBOARD ENDPOINTS ==========
 
-@router.post("/logout-all")
-async def logout_all_devices(current_user: UserInDB = Depends(get_current_user)):
-    """
-    Logout from all devices by removing all refresh tokens
-    """
-    try:
-        # Remove all refresh tokens from database
-        await users_collection.update_one(
-            {"email": current_user.email},
-            {"$unset": {"refresh_token": ""}}
-        )
-        
-        logger.info(f"User logged out from all devices: {current_user.email}")
-        return {"message": "Successfully logged out from all devices"}
-        
-    except Exception as e:
-        logger.error(f"Error during logout from all devices: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error during logout"
-        )
-@router.get("/admin/users", dependencies=[Depends(require_admin)])
-async def get_all_users_admin(current_user: UserInDB = Depends(get_current_user)):
+@router.get("/admin/users")
+async def admin_get_all_users(current_user: UserInDB = Depends(require_admin)):
     """Get all users (Admin only)"""
     try:
-        users = await users_collection.find().to_list(length=100)
+        users = await get_all_users(current_user)
+        return [
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "firstname": user.firstname,
+                "lastname": user.lastname,
+                "role": user.role,
+                "created_at": user.created_at,
+                "mobile_no": user.mobile_no
+            }
+            for user in users
+        ]
+    except Exception as e:
+        logger.error(f"Admin users fetch error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch users"
+        )
+
+@router.get("/admin/users/role/{role}")
+async def admin_get_users_by_role(
+    role: str,
+    current_user: UserInDB = Depends(require_admin)
+):
+    """Get users by specific role (Admin only)"""
+    try:
+        users = await get_users_by_role(role, current_user)
+        return [
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "firstname": user.firstname,
+                "lastname": user.lastname,
+                "role": user.role,
+                "created_at": user.created_at
+            }
+            for user in users
+        ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Role-based users fetch error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch users by role"
+        )
+
+@router.put("/admin/users/{email}/role")
+async def admin_update_user_role(
+    email: str, 
+    role_update: dict,
+    current_user: UserInDB = Depends(require_admin)
+):
+    """Update user role (Admin only)"""
+    try:
+        return await update_user_role(email, role_update.get("role"), current_user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Role update error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user role"
+        )
+
+@router.get("/admin/stats")
+async def admin_get_stats(current_user: UserInDB = Depends(require_admin)):
+    """Get user statistics (Admin only)"""
+    try:
+        return await get_user_stats(current_user)
+    except Exception as e:
+        logger.error(f"Stats fetch error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch statistics"
+        )
+
+@router.get("/admin/dashboard")
+async def admin_dashboard(current_user: UserInDB = Depends(require_admin)):
+    """Admin dashboard (Admin only)"""
+    return {
+        "message": "Welcome to Admin Dashboard",
+        "user": {
+            "email": current_user.email,
+            "role": current_user.role
+        },
+        "features": [
+            "View all users",
+            "Manage user roles",
+            "View user statistics",
+            "Filter users by role"
+        ]
+    }
+
+# ========== AGENCY DASHBOARD ENDPOINTS ==========
+
+@router.get("/agency/users")
+async def agency_get_users(current_user: UserInDB = Depends(require_agency)):
+    """Get users for agency (Agency can see regular users)"""
+    try:
+        # Agencies can see regular users and their own agency users
+        users = await users_collection.find({
+            "role": {"$in": ["user", "agency"]}
+        }).to_list(length=1000)
+        
         user_list = []
         for user in users:
             user["_id"] = str(user["_id"])
@@ -362,64 +338,95 @@ async def get_all_users_admin(current_user: UserInDB = Depends(get_current_user)
         return user_list
         
     except Exception as e:
-        logger.error(f"Error fetching users: {e}")
+        logger.error(f"Agency users fetch error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch users"
         )
 
-@router.put("/admin/users/{email}/role", dependencies=[Depends(require_admin)])
-async def update_user_role(
-    email: str, 
-    role_update: dict,
-    current_user: UserInDB = Depends(get_current_user)
-):
-    """Update user role (Admin only)"""
+@router.get("/agency/dashboard")
+async def agency_dashboard(current_user: UserInDB = Depends(require_agency)):
+    """Agency dashboard (Agency only)"""
+    return {
+        "message": "Welcome to Agency Dashboard",
+        "user": {
+            "email": current_user.email,
+            "role": current_user.role
+        },
+        "features": [
+            "View regular users",
+            "View other agencies",
+            "Manage user watchlists",
+            "Track user activities"
+        ]
+    }
+
+# ========== TOKEN MANAGEMENT ==========
+
+@router.post("/refresh")
+async def refresh_token(request: Request):
+    """Refresh access token"""
     try:
-        new_role = role_update.get("role")
-        allowed_roles = ["user", "admin", "manager"]
+        data = await request.json()
+        refresh_token = data.get("refresh_token")
         
-        if new_role not in allowed_roles:
+        if not refresh_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Role must be one of {allowed_roles}"
+                detail="Refresh token is required"
             )
         
-        result = await users_collection.update_one(
-            {"email": email},
-            {"$set": {"role": new_role, "updated_at": datetime.now().isoformat()}}
+        user = await verify_refresh_token(refresh_token)
+        new_access_token = create_access_token(data={"sub": user.email, "role": user.role})
+        new_refresh_token = create_refresh_token(data={"sub": user.email})
+        
+        await users_collection.update_one(
+            {"email": user.email},
+            {"$set": {"refresh_token": new_refresh_token}}
         )
         
-        if result.modified_count == 0:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-        
-        return {"message": f"User role updated to {new_role}"}
+        return {
+            "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer"
+        }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating user role: {e}")
+        logger.error(f"Token refresh error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update user role"
+            detail="Failed to refresh token"
         )
 
-@router.get("/admin/dashboard", dependencies=[Depends(require_admin)])
-async def admin_dashboard(current_user: UserInDB = Depends(get_current_user)):
-    """Admin dashboard (Admin only)"""
-    return {
-        "message": "Welcome to Admin Dashboard",
-        "user_count": await users_collection.count_documents({}),
-        "your_role": current_user.role
-    }
-
-@router.get("/manager/dashboard", dependencies=[Depends(require_manager)])
-async def manager_dashboard(current_user: UserInDB = Depends(get_current_user)):
-    """Manager dashboard (Manager and Admin only)"""
-    return {
-        "message": "Welcome to Manager Dashboard",
-        "your_role": current_user.role
-    }
+@router.post("/logout")
+async def logout(
+    request: Request,
+    current_user: UserInDB = Depends(require_user)
+):
+    """Logout user"""
+    try:
+        data = await request.json()
+        refresh_token = data.get("refresh_token")
+        
+        update_data = {"$unset": {"refresh_token": ""}}
+        if refresh_token:
+            await users_collection.update_one(
+                {"email": current_user.email, "refresh_token": refresh_token},
+                update_data
+            )
+        else:
+            await users_collection.update_one(
+                {"email": current_user.email},
+                update_data
+            )
+        
+        return {"message": "Successfully logged out"}
+        
+    except Exception as e:
+        logger.error(f"Logout error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error during logout"
+        )
