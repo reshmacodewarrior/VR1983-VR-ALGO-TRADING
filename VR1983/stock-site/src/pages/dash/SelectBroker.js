@@ -17,15 +17,13 @@ import { toast } from "react-toastify";
 export default function BrokerAccountForm() {
   const [formData, setFormData] = useState({
     broker_name: "",
-    api_Key: "",
-    api_Secret: "",
+    api_key: "",      // ✅ CHANGED: from api_Key to api_key
+    api_secret: "",   // ✅ CHANGED: from api_Secret to api_secret
   });
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState(""); // "success" or "error"
   const [isLoading, setIsLoading] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
 
-  // Primary color for the theme
   const primaryColor = "#42a5f5";
 
   const handleChange = (e) => {
@@ -34,134 +32,121 @@ export default function BrokerAccountForm() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setMessage("");
+  e.preventDefault();
+  setIsLoading(true);
+  setMessage("");
 
+  try {
+    // Simple payload - use exact field names
+    const payload = {
+      broker_name: formData.broker_name,
+      api_key: formData.api_key,
+      api_secret: formData.api_secret,
+    };
+
+    console.log("Sending this data:", payload);
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setMessage("❌ Please login first");
+      setIsLoading(false);
+      return;
+    }
+
+    // Simple API call
+    const response = await axios.post(
+      "http://192.168.1.58:8000/api/broker/add",
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    // Success
+    console.log("Success:", response.data);
+    setMessage("✅ Broker connected successfully!");
+    toast.success("Broker connected!");
+    
+    // Reset form
+    setFormData({
+      broker_name: "",
+      api_key: "",
+      api_secret: "",
+    });
+    
+  } catch (error) {
+    // Simple error handling
+    console.log("Error details:", error);
+    
+    let errorMessage = "Connection failed";
+    
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail;
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    setMessage(`❌ ${errorMessage}`);
+    toast.error(errorMessage);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  // ✅ ADDITIONAL FUNCTION: Upstox OAuth Flow
+  const connectUpstoxOAuth = async () => {
     try {
-      // Build payload to match backend field names
-      const payload = {
-        broker_name: formData.broker_name,
-        api_key: formData.api_Key,
-        api_secret: formData.api_Secret,
-      };
-
-      // Retrieve token
       const token = localStorage.getItem("token");
       if (!token) {
-        setMessage("❌ No authentication token found. Please login first.");
-        setMessageType("error");
-        setIsLoading(false);
+        toast.error("Please login first");
         return;
       }
 
-      // API request
-      const response = await axios.post(
-        "http://192.168.1.58:8000/api/broker/add",
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      // ✅ Success
-      console.log("Response:", response.data);
-      setMessage("Broker account connected successfully!");
-      setMessageType("success");
+      toast.info("Redirecting to Upstox for authentication...");
       
-      // Show success toast
-      toast.success(
-        <div className="flex items-center gap-2">
-          <CheckCircle className="w-5 h-5 text-green-400" />
-          <span>Broker account connected successfully!</span>
-        </div>
-      );
-      
-      // Reset form
-      setFormData({
-        broker_name: "",
-        api_Key: "",
-        api_Secret: "",
-      });
+      // Open Upstox OAuth in new tab
+      window.open(`http://192.168.1.58:8000/api/upstox/login`, '_blank');
       
     } catch (error) {
-      // ❌ Error handling
-      let errorMessage = "Failed to connect broker account";
-      
-      if (error.response) {
-        // Backend returned an error response
-        console.error("Backend Error:", error.response.data);
-        errorMessage = error.response.data.message || "Server error";
-      } else if (error.request) {
-        // No response received
-        console.error("Network Error:", error.request);
-        errorMessage = "No response from server. Check network connection.";
-      } else {
-        // Other errors
-        console.error("Error:", error.message);
-        errorMessage = error.message;
-      }
-      
-      setMessage(`❌ ${errorMessage}`);
-      setMessageType("error");
-      
-      // Show error toast
-      toast.error(
-        <div className="flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 text-red-400" />
-          <span>{errorMessage}</span>
-        </div>
-      );
-    } finally {
-      setIsLoading(false);
+      console.error("Upstox OAuth error:", error);
+      toast.error("Failed to initiate Upstox connection");
     }
   };
 
   const brokers = [
     { value: "zerodha", label: "Zerodha" },
     { value: "upstox", label: "Upstox" },
-    { value: "angel", label: "Angel One" },
+    { value: "angel_one", label: "Angel One" }, // ✅ Match backend enum
     { value: "groww", label: "Groww" },
-    { value: "ICICI Direct", label: "ICICI Direct" },
+    { value: "icici_direct", label: "ICICI Direct" }, // ✅ Match backend enum
   ];
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      {/* Animated background elements */}
+      {/* Background elements */}
       <div className="absolute inset-0 overflow-hidden">
         {[...Array(15)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute animate-float"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 5}s`,
-              animationDuration: `${15 + Math.random() * 10}s`
-            }}
-          >
-            <div 
-              className="w-2 h-2 rounded-full opacity-20"
-              style={{ backgroundColor: primaryColor }}
-            ></div>
+          <div key={i} className="absolute animate-float" style={{
+            top: `${Math.random() * 100}%`,
+            left: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 5}s`,
+            animationDuration: `${15 + Math.random() * 10}s`
+          }}>
+            <div className="w-2 h-2 rounded-full opacity-20" style={{ backgroundColor: primaryColor }}></div>
           </div>
         ))}
       </div>
 
       <div className="relative w-full max-w-md">
         {/* Header Card */}
-        <div 
-          className="bg-white border rounded-2xl p-6 mb-6 text-center shadow-lg"
-          style={{ borderColor: `${primaryColor}20` }}
-        >
+        <div className="bg-white border rounded-2xl p-6 mb-6 text-center shadow-lg" style={{ borderColor: `${primaryColor}20` }}>
           <div className="flex justify-center mb-4">
-            <div 
-              className="p-3 rounded-xl"
-              style={{ backgroundColor: `${primaryColor}10` }}
-            >
+            <div className="p-3 rounded-xl" style={{ backgroundColor: `${primaryColor}10` }}>
               <Link2 style={{ color: primaryColor }} className="h-8 w-8" />
             </div>
           </div>
@@ -209,8 +194,8 @@ export default function BrokerAccountForm() {
               <div className="relative">
                 <input
                   type="text"
-                  name="api_Key"
-                  value={formData.api_Key}
+                  name="api_key"  // ✅ CHANGED: from api_Key to api_key
+                  value={formData.api_key}
                   onChange={handleChange}
                   placeholder="Enter your API Key"
                   className="w-full p-3 border rounded-xl focus:ring-2 outline-none transition-colors pr-10"
@@ -233,8 +218,8 @@ export default function BrokerAccountForm() {
               <div className="relative">
                 <input
                   type={showSecret ? "text" : "password"}
-                  name="api_Secret"
-                  value={formData.api_Secret}
+                  name="api_secret"  // ✅ CHANGED: from api_Secret to api_secret
+                  value={formData.api_secret}
                   onChange={handleChange}
                   placeholder="Enter your API Secret Key"
                   className="w-full p-3 border rounded-xl focus:ring-2 outline-none transition-colors pr-10"
@@ -255,14 +240,21 @@ export default function BrokerAccountForm() {
               </div>
             </div>
 
+            {/* Special Upstox Notice */}
+            {formData.broker_name === "upstox" && (
+              <div className="rounded-xl p-3 flex items-start gap-3 bg-blue-50 border border-blue-200">
+                <AlertCircle className="mt-0.5 flex-shrink-0 text-blue-600" size={16}/>
+                <p className="text-xs text-blue-700">
+                  <strong>Upstox Note:</strong> Upstox uses OAuth authentication. You can also use the OAuth flow for better security.
+                </p>
+              </div>
+            )}
+
             {/* Security Note */}
-            <div 
-              className="rounded-xl p-3 flex items-start gap-3"
-              style={{ 
-                backgroundColor: `${primaryColor}05`,
-                border: `1px solid ${primaryColor}20`
-              }}
-            >
+            <div className="rounded-xl p-3 flex items-start gap-3" style={{ 
+              backgroundColor: `${primaryColor}05`,
+              border: `1px solid ${primaryColor}20`
+            }}>
               <Shield className="mt-0.5 flex-shrink-0" size={16} style={{ color: primaryColor }} />
               <p className="text-xs" style={{ color: primaryColor }}>
                 Your API credentials are encrypted and stored securely. We never store your passwords.
@@ -271,15 +263,13 @@ export default function BrokerAccountForm() {
 
             {/* Message Display */}
             {message && (
-              <div 
-                className={`p-3 rounded-xl border ${
-                  messageType === "success" 
-                    ? "bg-green-50 border-green-200 text-green-700" 
-                    : "bg-red-50 border-red-200 text-red-700"
-                }`}
-              >
+              <div className={`p-3 rounded-xl border ${
+                message === "success" 
+                  ? "bg-green-50 border-green-200 text-green-700" 
+                  : "bg-red-50 border-red-200 text-red-700"
+              }`}>
                 <div className="flex items-center gap-2">
-                  {messageType === "success" ? (
+                  {message === "success" ? (
                     <CheckCircle size={16} className="text-green-600" />
                   ) : (
                     <AlertCircle size={16} className="text-red-600" />
@@ -295,19 +285,11 @@ export default function BrokerAccountForm() {
               disabled={isLoading}
               className="w-full text-white py-3 rounded-xl font-semibold text-lg shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:scale-105"
               style={{ backgroundColor: primaryColor }}
-              onMouseEnter={(e) => {
-                if (!isLoading) e.target.style.backgroundColor = '#1e88e5';
-              }}
-              onMouseLeave={(e) => {
-                if (!isLoading) e.target.style.backgroundColor = primaryColor;
-              }}
             >
               {isLoading ? (
                 <>
-                  <div 
-                    className="w-5 h-5 border-2 rounded-full animate-spin"
-                    style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }}
-                  ></div>
+                  <div className="w-5 h-5 border-2 rounded-full animate-spin"
+                    style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }}></div>
                   Connecting...
                 </>
               ) : (
@@ -317,9 +299,20 @@ export default function BrokerAccountForm() {
                 </>
               )}
             </button>
+
+            {/* Optional: Upstox OAuth Button */}
+            {formData.broker_name === "upstox" && (
+              <button
+                type="button"
+                onClick={connectUpstoxOAuth}
+                className="w-full bg-orange-500 text-white py-3 rounded-xl font-semibold text-lg shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 flex items-center justify-center gap-2 hover:scale-105"
+              >
+                <Key size={20} />
+                Connect via Upstox OAuth (Recommended)
+              </button>
+            )}
           </form>
 
-          {/* Footer Links */}
           <div className="mt-6 pt-6 border-t" style={{ borderColor: `${primaryColor}20` }}>
             <p className="text-xs text-center text-gray-600">
               Need help finding your API credentials?{" "}
@@ -331,25 +324,13 @@ export default function BrokerAccountForm() {
         </div>
       </div>
 
-      {/* Custom CSS for animations */}
       <style jsx>{`
         @keyframes float {
-          0% {
-            transform: translateY(0) rotate(0deg);
-            opacity: 0.2;
-          }
-          50% {
-            transform: translateY(-20px) rotate(10deg);
-            opacity: 0.3;
-          }
-          100% {
-            transform: translateY(0) rotate(0deg);
-            opacity: 0.2;
-          }
+          0% { transform: translateY(0) rotate(0deg); opacity: 0.2; }
+          50% { transform: translateY(-20px) rotate(10deg); opacity: 0.3; }
+          100% { transform: translateY(0) rotate(0deg); opacity: 0.2; }
         }
-        .animate-float {
-          animation: float 5s ease-in-out infinite;
-        }
+        .animate-float { animation: float 5s ease-in-out infinite; }
       `}</style>
     </div>
   );

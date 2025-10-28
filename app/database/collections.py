@@ -1,3 +1,4 @@
+import datetime
 from typing import Any, Dict, List, Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -108,3 +109,46 @@ async def update_backtest(backtest_id: str, update_data: dict):
     except Exception as e:
         print(f"❌ Error updating backtest: {e}")
         return False
+# Add these broker-specific operations to your collections.py
+
+async def create_broker_connection(connection_data: Dict[str, Any]) -> str:
+    """Save broker connection to brokers collection"""
+    result = await brokers_collection.insert_one(connection_data)
+    return str(result.inserted_id)
+
+async def get_broker_connections(user_identifier: str) -> List[Dict[str, Any]]:
+    """Get all broker connections for a user"""
+    # This assumes you store user_id in broker connections
+    cursor = brokers_collection.find({"user_identifier": user_identifier})
+    return await cursor.to_list(length=10)
+
+async def update_broker_connection(broker_user_id: str, update_data: Dict[str, Any]) -> bool:
+    """Update broker connection"""
+    result = await brokers_collection.update_one(
+        {"broker_user_id": broker_user_id},
+        {"$set": update_data}
+    )
+    return result.modified_count > 0
+
+async def deactivate_broker_connection(broker_user_id: str) -> bool:
+    """Deactivate broker connection"""
+    result = await brokers_collection.update_one(
+        {"broker_user_id": broker_user_id},
+        {"$set": {"is_active": False, "deactivated_at": datetime.now()}}
+    )
+    return result.modified_count > 0
+
+# Trading operations that use the Upstox connection
+async def create_trade_with_broker(trade_data: Dict[str, Any]) -> str:
+    """Save trade that was executed via broker"""
+    result = await trades_collection.insert_one(trade_data)
+    return str(result.inserted_id)
+
+async def update_holdings_from_broker(user_id: str, holdings_data: Dict[str, Any]) -> bool:
+    """Update user holdings from broker data"""
+    result = await holdings_collection.update_one(
+        {"user_id": user_id},
+        {"$set": holdings_data},
+        upsert=True
+    )
+    return result.upserted_id is not None or result.modified_count > 0

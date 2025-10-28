@@ -12,13 +12,13 @@ const Header = () => {
       loading: true,
     },
     sensex: { value: null, change: null, changePercent: null, loading: true },
-    niftyAuto: {
+    niftyIt: {
       value: null,
       change: null,
       changePercent: null,
       loading: true,
     },
-    tatamotors: {
+    niftyAuto: {
       value: null,
       change: null,
       changePercent: null,
@@ -41,19 +41,19 @@ const Header = () => {
       const period = "1d";
       const interval = "1m";
 
-      // Fetch all indices data in parallel
+      // Fetch all major indices data in parallel
       const [
         nifty50Data,
         niftyBankData,
         sensexData,
+        niftyItData,
         niftyAutoData,
-        tatamotorsData,
       ] = await Promise.all([
-        stockAPI.getStock("^NSEI", period, interval),
-        stockAPI.getStock("^NSEBANK", period, interval),
-        stockAPI.getStock("^BSESN", period, interval),
-        stockAPI.getStock("^CNXAUTO", period, interval),
-        stockAPI.getStock("TATAMOTORS.BO", period, interval),
+        stockAPI.getStock("^NSEI", period, interval),      // Nifty 50
+        stockAPI.getStock("^NSEBANK", period, interval),   // Nifty Bank
+        stockAPI.getStock("^BSESN", period, interval),     // Sensex
+        stockAPI.getStock("^CNXIT", period, interval),     // Nifty IT
+        stockAPI.getStock("^CNXAUTO", period, interval),   // Nifty Auto
       ]);
 
       setIndicesData({
@@ -75,16 +75,16 @@ const Header = () => {
           changePercent: sensexData?.change_percent || null,
           loading: false,
         },
+        niftyIt: {
+          value: niftyItData?.current_price || null,
+          change: niftyItData?.change || null,
+          changePercent: niftyItData?.change_percent || null,
+          loading: false,
+        },
         niftyAuto: {
           value: niftyAutoData?.current_price || null,
           change: niftyAutoData?.change || null,
           changePercent: niftyAutoData?.change_percent || null,
-          loading: false,
-        },
-        tatamotors: {
-          value: tatamotorsData?.current_price || null,
-          change: tatamotorsData?.change || null,
-          changePercent: tatamotorsData?.change_percent || null,
           loading: false,
         },
       });
@@ -97,8 +97,8 @@ const Header = () => {
         nifty50: { ...prev.nifty50, loading: false },
         niftyBank: { ...prev.niftyBank, loading: false },
         sensex: { ...prev.sensex, loading: false },
+        niftyIt: { ...prev.niftyIt, loading: false },
         niftyAuto: { ...prev.niftyAuto, loading: false },
-        tatamotors: { ...prev.tatamotors, loading: false },
       }));
     } finally {
       setIsRefreshing(false);
@@ -256,16 +256,16 @@ const Header = () => {
             isIndex={true}
           />
           <IndexCard
+            title="NIFTY IT"
+            data={indicesData.niftyIt}
+            indexKey="niftyIt"
+            isIndex={true}
+          />
+          <IndexCard
             title="NIFTY AUTO"
             data={indicesData.niftyAuto}
             indexKey="niftyAuto"
             isIndex={true}
-          />
-          <IndexCard
-            title="TATA MOTORS"
-            data={indicesData.tatamotors}
-            indexKey="tatamotors"
-            isIndex={false}
           />
         </div>
 

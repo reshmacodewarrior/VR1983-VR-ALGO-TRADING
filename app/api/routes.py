@@ -2,7 +2,6 @@ import datetime
 from typing import List
 from fastapi import APIRouter
 
-from fastapi import APIRouter
 from .user import router as user_router
 from .market import router as market_router
 from .broker import router as broker_router 
@@ -16,22 +15,24 @@ from .strategy_marketplace import router as strategy_marketplace_router
 from .strategy_editor import router as strategy_editor_router   
 from .strategy_backtest import router as strategy_backtest_router    
 from .strategy_management import router as strategy_management_router   
+from .upstox import router as upstox_router
 
-api_router = APIRouter()
+router = APIRouter()
 
-api_router.include_router(user_router)
-api_router.include_router(market_router)
-api_router.include_router(broker_router)
-api_router.include_router(password_router)
-api_router.include_router(watchlist_router)
-api_router.include_router(order_router)
-api_router.include_router(levels_router)
-api_router.include_router(signal_router)
-api_router.include_router(csv_router)
-api_router.include_router(strategy_marketplace_router)
-api_router.include_router(strategy_editor_router)
-api_router.include_router(strategy_backtest_router)
-api_router.include_router(strategy_management_router)
+router.include_router(user_router)
+router.include_router(market_router)
+router.include_router(broker_router)
+router.include_router(password_router)
+router.include_router(watchlist_router)
+router.include_router(order_router)
+router.include_router(levels_router)
+router.include_router(signal_router)
+router.include_router(csv_router)
+router.include_router(strategy_marketplace_router)
+router.include_router(strategy_editor_router)
+router.include_router(strategy_backtest_router)
+router.include_router(strategy_management_router)
+router.include_router(upstox_router)
 
 
 
