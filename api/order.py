@@ -11,7 +11,7 @@ from schemas.order import OrderRequest, OrderResponse, Trade, Holding
 from .user import get_current_user
 from schemas.user import UserInDB
 
-router = APIRouter(prefix="/api", tags=["Trading"])
+router = APIRouter(prefix="/api/order", tags=["Trading"])
 
 # Set up logging
 logger = logging.getLogger(__name__)

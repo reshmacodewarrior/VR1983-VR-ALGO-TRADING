@@ -1,7 +1,7 @@
 # tests/test_market.py
 import pytest
 from fastapi.testclient import TestClient
-from app.api.routes import api_router
+from api.routes import api_router
 
 client = TestClient(api_router)
 
