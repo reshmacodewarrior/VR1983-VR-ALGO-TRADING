@@ -19,7 +19,7 @@ async def get_signals():
     }
 
 
-@router.get("/api/user/generate-signals")
+@router.get("/user/generate-signals")
 async def generate_user_signals(current_user: UserInDB = Depends(get_current_user)):
     """Generate fresh trading signals for the current user's watchlist"""
     try:
@@ -75,7 +75,7 @@ async def generate_user_signals(current_user: UserInDB = Depends(get_current_use
             "error": "Failed to generate signals"
         }
 
-@router.get("/api/user/signals")
+@router.get("/user/signals")
 async def get_user_signals(current_user: UserInDB = Depends(get_current_user)):
     """Get latest trading signals for the current user"""
     try:

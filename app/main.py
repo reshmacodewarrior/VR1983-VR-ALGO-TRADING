@@ -45,34 +45,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def startup_event():
-    print("🔥 DEBUG: Startup event called")  # <--- add this
-    logger.info("🚀 Starting VR Algo Trading Application...")
-    from app.services.scheduler import start_scheduler
-    start_scheduler()
 
-@app.get("/scheduler/status")
-async def get_scheduler_status():
-    from app.services.scheduler import get_scheduler_status
-    return get_scheduler_status()
 
-try:
-    from api.routes import router
-    app.include_router(router, prefix="/api")
-except ImportError as e:
-    print(f"❌ Router import failed: {e}")
+@app.get("/")
+async def root():
+    return {"message": "Trading API Server Running", "docs": "/docs"}
 
-# Include other routes directly if needed
-from api import watchlist, signal, market, user, upstox, broker, order
-
-app.include_router(watchlist.router, prefix="/api/watchlist", tags=["Watchlist"])
-app.include_router(market.router, prefix="/api/market", tags=["Market Data"])
-app.include_router(signal.router, prefix="/api/signal", tags=["Signals"])
-app.include_router(user.router, prefix="/api/user", tags=["User"])
-app.include_router(upstox.router,prefix="/api/upstox", tags=["Upstox"])
-app.include_router(broker.router,prefix="/api/broker", tags=["broker"] )
-app.include_router(order.router,prefix="/api/order", tags=["Orders"])
 
 
 if __name__ == "__main__":

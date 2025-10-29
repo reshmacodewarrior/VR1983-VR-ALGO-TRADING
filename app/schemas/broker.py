@@ -31,7 +31,8 @@ class BrokerResponse(BaseModel):
     is_active: bool = True  # ✅ Add default value
     created_at: datetime
     last_used: Optional[datetime] = None  # ✅ Make optional
-    
+    status: str = "active"  # ← ADD
+    connection_type: str = "oauth"  # ← ADD
     class Config:
         from_attributes = True
 

@@ -1,7 +1,7 @@
 # app/api/csv_routes.py
 from fastapi import APIRouter, Query
 
-router = APIRouter(prefix="/csv", tags=["CSV Exports"])
+router = APIRouter(prefix="/api/csv", tags=["CSV Exports"])
 
 @router.get("/analyze-symbols")
 async def analyze_symbols_to_csv(

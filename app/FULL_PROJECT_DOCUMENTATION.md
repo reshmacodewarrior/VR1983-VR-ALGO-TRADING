@@ -11,6 +11,7 @@
 📁 `api`
 📄 `utils.py`
 📁 `test`
+📄 `FULL_PROJECT_DOCUMENTATION.md`
 📄 `secret.py`
 📄 `kite_password.png`
 📄 `main.py`
@@ -25,13 +26,16 @@
 📄 `admin_password.jpeg`
 📁 `scripts`
 📁 `static`
+📄 `key.pem`
 📁 `middleware`
 📄 `algo.py`
 📄 `manager_password.jpeg`
 📄 `generate_all_docs.py`
 📁 `services`
+📄 `cert.pem`
 📄 `requirements.txt`
 📄 `exceptions.py`
+📄 `project_structure.json`
 📄 `auto_documenter.py`
 📄 `api/order.py`
 📄 `api/strategy_management.py`
@@ -152,7 +156,7 @@
 ---
 
 ### `main.py`
-**Lines:** 59
+**Lines:** 84
 
 ---
 
@@ -376,12 +380,12 @@
 ---
 
 ### `api/upstox.py`
-**Lines:** 190
+**Lines:** 224
 
 #### Functions:
-- **login** (Line 23)
-  - Store Upstox connection in brokers collection  upstox_user_id = profile.get('user_id', 'unknown') user_name = profile.get('user_name', 'Unknown User') email = profile.get('email', '')  # Prepare broker connection document broker_connection = { "broker_name": "upstox", "broker_user_id": upstox_user_id, "user_name": user_name, "email": email, "access_token": token_data['access_token'], "refresh_token": token_data.get('refresh_token', ''), "token_expiry": datetime.now() + timedelta(seconds=token_data.get('expires_in', 86400)), "created_at": datetime.now(), "last_used": datetime.now(), "is_active": True, "profile_data": profile  # Store full profile for reference }  # Upsert the broker connection result = await brokers_collection.update_one( { "broker_name": "upstox", "broker_user_id": upstox_user_id }, {"$set": broker_connection}, upsert=True )  # Also update the main users collection if needed await users_collection.update_one( {"email": email},  # or whatever identifier you use { "$set": { "broker_connected": True, "broker_name": "upstox", "broker_user_id": upstox_user_id, "last_broker_connection": datetime.now() }, "$addToSet": { "connected_brokers": "upstox" } }, upsert=False  # Only update if user exists )  return upstox_user_id  def get_user_profile(access_token: str) -> Dict[str, Any]: Fetch user profile from Upstox
-- **get_user_profile** (Line 128)
+- **login** (Line 24)
+  - Store Upstox connection in brokers collection  upstox_user_id = profile.get('user_id', 'unknown') user_name = profile.get('user_name', 'Unknown User') email = profile.get('email', '')  # Prepare broker connection document broker_connection = { "user_id": str(current_user.id), "broker_name": "upstox", "broker_user_id": upstox_user_id, "user_name": user_name, "email": email, "access_token": token_data['access_token'], "refresh_token": token_data.get('refresh_token', ''), "token_expiry": datetime.now() + timedelta(seconds=token_data.get('expires_in', 86400)), "created_at": datetime.now(), "last_used": datetime.now(), "is_active": True, "profile_data": profile  # Store full profile for reference }  # Upsert the broker connection result = await brokers_collection.update_one( { "broker_name": "upstox", "broker_user_id": upstox_user_id }, {"$set": broker_connection}, upsert=True )  # Also update the main users collection if needed await users_collection.update_one( {"email": email},  # or whatever identifier you use { "$set": { "broker_connected": True, "broker_name": "upstox", "broker_user_id": upstox_user_id, "last_broker_connection": datetime.now() }, "$addToSet": { "connected_brokers": "upstox" } }, upsert=False  # Only update if user exists )  return upstox_user_id  def get_user_profile(access_token: str) -> Dict[str, Any]: Fetch user profile from Upstox
+- **get_user_profile** (Line 130)
   - Fetch user profile from Upstox headers = {"Authorization": f"Bearer {access_token}"} response = requests.get("https://api.upstox.com/v2/user/profile", headers=headers) return response.json().get('data', {})  # Utility function to get active Upstox connection async def get_upstox_connection(broker_user_id: str = None, email: str = None) -> Dict[str, Any]: Retrieve active Upstox connection from database
 
 ---
@@ -403,7 +407,7 @@
 ---
 
 ### `api/routes.py`
-**Lines:** 40
+**Lines:** 39
 
 ---
 
@@ -503,7 +507,7 @@
 ---
 
 ### `schemas/broker.py`
-**Lines:** 47
+**Lines:** 48
 
 #### Classes:
 - **BrokerType** (Line 6)
@@ -516,17 +520,17 @@
   - No documentation
 - **BrokerResponse** (Line 27)
   - No documentation
-- **Config** (Line 35)
+- **Config** (Line 36)
   - No documentation
-- **BrokerConnection** (Line 38)
+- **BrokerConnection** (Line 39)
   - No documentation
-- **UpstoxOAuthRequest** (Line 46)
+- **UpstoxOAuthRequest** (Line 47)
   - No documentation
 
 ---
 
 ### `schemas/user.py`
-**Lines:** 108
+**Lines:** 109
 
 #### Classes:
 - **Token** (Line 8)

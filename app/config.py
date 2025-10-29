@@ -23,9 +23,9 @@ class Settings(BaseSettings):
     VALIDATE_CERTS: bool = True
     
     # ✅ ADD UPSTOX SETTINGS HERE
-    UPSTOX_CLIENT_ID: str = ""
-    UPSTOX_CLIENT_SECRET: str = ""
-    UPSTOX_REDIRECT_URL: str = "http://localhost:8000/api/upstox/callback"
+    UPSTOX_CLIENT_ID: str = "c46493c7-4b0b-45bf-9030-826763b5f2f8"
+    UPSTOX_CLIENT_SECRET: str = "b1dowdr6qx"
+    UPSTOX_REDIRECT_URL: str = "https://localhost:8000/api/upstox/callback"
     UPSTOX_BASE_URL: str = "https://api.upstox.com/v2"
 
     class Config:

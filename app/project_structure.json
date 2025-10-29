@@ -6,6 +6,7 @@
       "api": "directory",
       "utils.py": "file",
       "test": "directory",
+      "FULL_PROJECT_DOCUMENTATION.md": "file",
       "secret.py": "file",
       "kite_password.png": "file",
       "main.py": "file",
@@ -20,13 +21,16 @@
       "admin_password.jpeg": "file",
       "scripts": "directory",
       "static": "directory",
+      "key.pem": "file",
       "middleware": "directory",
       "algo.py": "file",
       "manager_password.jpeg": "file",
       "generate_all_docs.py": "file",
       "services": "directory",
+      "cert.pem": "file",
       "requirements.txt": "file",
       "exceptions.py": "file",
+      "project_structure.json": "file",
       "auto_documenter.py": "file",
       "api/order.py": "file",
       "api/strategy_management.py": "file",
@@ -164,13 +168,16 @@
         "from fastapi import FastAPI",
         "from fastapi.staticfiles import StaticFiles",
         "from fastapi.templating import Jinja2Templates",
-        "from app.api.routes import api_router",
+        "from app.api.routes import router",
         "from fastapi.middleware.cors import CORSMiddleware",
         "from app.services.scheduler import start_scheduler, stop_scheduler",
         "from app.services.scheduler import start_scheduler",
-        "from app.services.scheduler import get_scheduler_status"
+        "from app.services.scheduler import get_scheduler_status",
+        "from api.routes import router",
+        "from api import watchlist, signal, market, user, upstox, broker, order",
+        "import uvicorn"
       ],
-      "line_count": 59
+      "line_count": 84
     },
     {
       "file_path": "stock_dashboard.py",
@@ -710,12 +717,12 @@
       "functions": [
         {
           "name": "login",
-          "line": 23,
-          "docstring": "Store Upstox connection in brokers collection  upstox_user_id = profile.get('user_id', 'unknown') user_name = profile.get('user_name', 'Unknown User') email = profile.get('email', '')  # Prepare broker connection document broker_connection = { \"broker_name\": \"upstox\", \"broker_user_id\": upstox_user_id, \"user_name\": user_name, \"email\": email, \"access_token\": token_data['access_token'], \"refresh_token\": token_data.get('refresh_token', ''), \"token_expiry\": datetime.now() + timedelta(seconds=token_data.get('expires_in', 86400)), \"created_at\": datetime.now(), \"last_used\": datetime.now(), \"is_active\": True, \"profile_data\": profile  # Store full profile for reference }  # Upsert the broker connection result = await brokers_collection.update_one( { \"broker_name\": \"upstox\", \"broker_user_id\": upstox_user_id }, {\"$set\": broker_connection}, upsert=True )  # Also update the main users collection if needed await users_collection.update_one( {\"email\": email},  # or whatever identifier you use { \"$set\": { \"broker_connected\": True, \"broker_name\": \"upstox\", \"broker_user_id\": upstox_user_id, \"last_broker_connection\": datetime.now() }, \"$addToSet\": { \"connected_brokers\": \"upstox\" } }, upsert=False  # Only update if user exists )  return upstox_user_id  def get_user_profile(access_token: str) -> Dict[str, Any]: Fetch user profile from Upstox"
+          "line": 24,
+          "docstring": "Store Upstox connection in brokers collection  upstox_user_id = profile.get('user_id', 'unknown') user_name = profile.get('user_name', 'Unknown User') email = profile.get('email', '')  # Prepare broker connection document broker_connection = { \"user_id\": str(current_user.id), \"broker_name\": \"upstox\", \"broker_user_id\": upstox_user_id, \"user_name\": user_name, \"email\": email, \"access_token\": token_data['access_token'], \"refresh_token\": token_data.get('refresh_token', ''), \"token_expiry\": datetime.now() + timedelta(seconds=token_data.get('expires_in', 86400)), \"created_at\": datetime.now(), \"last_used\": datetime.now(), \"is_active\": True, \"profile_data\": profile  # Store full profile for reference }  # Upsert the broker connection result = await brokers_collection.update_one( { \"broker_name\": \"upstox\", \"broker_user_id\": upstox_user_id }, {\"$set\": broker_connection}, upsert=True )  # Also update the main users collection if needed await users_collection.update_one( {\"email\": email},  # or whatever identifier you use { \"$set\": { \"broker_connected\": True, \"broker_name\": \"upstox\", \"broker_user_id\": upstox_user_id, \"last_broker_connection\": datetime.now() }, \"$addToSet\": { \"connected_brokers\": \"upstox\" } }, upsert=False  # Only update if user exists )  return upstox_user_id  def get_user_profile(access_token: str) -> Dict[str, Any]: Fetch user profile from Upstox"
         },
         {
           "name": "get_user_profile",
-          "line": 128,
+          "line": 130,
           "docstring": "Fetch user profile from Upstox headers = {\"Authorization\": f\"Bearer {access_token}\"} response = requests.get(\"https://api.upstox.com/v2/user/profile\", headers=headers) return response.json().get('data', {})  # Utility function to get active Upstox connection async def get_upstox_connection(broker_user_id: str = None, email: str = None) -> Dict[str, Any]: Retrieve active Upstox connection from database"
         }
       ],
@@ -730,10 +737,11 @@
         "from datetime import datetime, timedelta",
         "from bson import ObjectId",
         "from typing import Dict, Any",
+        "from app.services.user import get_current_user",
         "from config import settings",
         "from database.collections import users_collection, brokers_collection"
       ],
-      "line_count": 190
+      "line_count": 224
     },
     {
       "file_path": "api/password.py",
@@ -785,7 +793,6 @@
         "import datetime",
         "from typing import List",
         "from fastapi import APIRouter",
-        "from fastapi import APIRouter",
         "from .user import router as user_router",
         "from .market import router as market_router",
         "from .broker import router as broker_router",
@@ -801,7 +808,7 @@
         "from .strategy_management import router as strategy_management_router",
         "from .upstox import router as upstox_router"
       ],
-      "line_count": 40
+      "line_count": 39
     },
     {
       "file_path": "test/test_market.py",
@@ -1031,17 +1038,17 @@
         },
         {
           "name": "Config",
-          "line": 35,
+          "line": 36,
           "docstring": "No documentation"
         },
         {
           "name": "BrokerConnection",
-          "line": 38,
+          "line": 39,
           "docstring": "No documentation"
         },
         {
           "name": "UpstoxOAuthRequest",
-          "line": 46,
+          "line": 47,
           "docstring": "No documentation"
         }
       ],
@@ -1051,7 +1058,7 @@
         "from datetime import datetime",
         "from enum import Enum"
       ],
-      "line_count": 47
+      "line_count": 48
     },
     {
       "file_path": "schemas/user.py",
@@ -1121,7 +1128,7 @@
         "from pydantic import BaseModel, Field, field_validator, EmailStr, ConfigDict",
         "from bson import ObjectId"
       ],
-      "line_count": 108
+      "line_count": 109
     },
     {
       "file_path": "schemas/notification.py",

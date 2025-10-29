@@ -106,3 +106,4 @@ class UserInDB(BaseModel):
         elif isinstance(v, str) and ObjectId.is_valid(v):
             return v
         raise ValueError("Invalid ObjectId format")
+    
