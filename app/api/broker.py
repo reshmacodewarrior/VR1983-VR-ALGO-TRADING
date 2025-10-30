@@ -104,7 +104,7 @@ async def upstox_oauth_callback(
     """Handle Upstox OAuth callback and store tokens"""
     
     # Exchange authorization code for tokens
-    token_url = "https://api.upstox.com/v2/login/authorization/token"
+    token_url = f"{settings.UPSTOX_BASE_URL}/login/authorization/token"
     data = {
         "code": oauth_data.authorization_code,
         "client_id": settings.UPSTOX_CLIENT_ID,
@@ -124,7 +124,7 @@ async def upstox_oauth_callback(
     
     # Get user profile from Upstox
     headers = {"Authorization": f"Bearer {token_data['access_token']}"}
-    profile_response = requests.get("https://api.upstox.com/v2/user/profile", headers=headers)
+    profile_response = requests.get(f"{settings.UPSTOX_BASE_URL}/user/profile", headers=headers)
     profile_data = profile_response.json().get('data', {})
     
     # Create or update broker connection
