@@ -1,350 +1,314 @@
-from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import RedirectResponse, JSONResponse
-import requests
-from urllib.parse import urlencode
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
-from app.services.user import get_current_user
-from config import settings
-from database.collections import users_collection, brokers_collection
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
+import urllib.parse
+
+import httpx
+from app.config import settings
+from app.schemas.upstox import OrderRequest, MultiOrderRequest, SingleOrderRequest,ModifyOrderRequest
+from app.services.upstox import (
+    get_all_orders_api,
+    get_order_history_api,
+    get_upstox_config, 
+    exchange_auth_code_for_token,
+    modify_order_api, 
+    place_order_api, 
+    place_multiple_orders_api
+)
 
 router = APIRouter(prefix="/api/upstox", tags=["Upstox"])
 
-# ✅ Config
-CLIENT_ID = settings.UPSTOX_SANDBOX_CLIENT_ID
-CLIENT_SECRET = settings.UPSTOX_SANDBOX_CLIENT_SECRET
-REDIRECT_URL = settings.UPSTOX_REDIRECT_URL
-FRONTEND_SUCCESS = "http://localhost:3000/connection-success"
-FRONTEND_ERROR = "http://localhost:3000/connection-error"
-
-
-# ============================================
-# LOGIN - Redirect user to Upstox Authorization page
-# ============================================
+# ---------------------------------------------------------------------
+# Step 1: Redirect user to Upstox authorization page
+# ---------------------------------------------------------------------
 @router.get("/login")
-def login():
-    if not CLIENT_ID or not CLIENT_SECRET:
-        raise HTTPException(
-            status_code=500,
-            detail="Upstox credentials missing. Check .env settings."
-        )
+async def upstox_login():
+    """Redirect user to Upstox authorization page"""
+    try:
+        config = get_upstox_config()
 
+        # Base URLs for different environments
+        if settings.ENVIRONMENT.lower() == "sandbox":
+            base_auth_url = "https://sandbox-api.upstox.com"
+        else:
+            base_auth_url = config["auth_url"]
+
+        params = {
+            "client_id": config["client_id"],
+            "redirect_uri": config["redirect_uri"],
+            "response_type": "code", 
+            "scope": "profile trade-read trade-place orders portfolio",
+            "state": "sandbox-auth",
+        }
+
+        if settings.ENVIRONMENT.lower() == "sandbox":
+            params["ucc"] = "TEST1234"
+            # Sandbox uses the old endpoint structure
+            auth_url = f"{base_auth_url}/login/authorization/dialog?{urllib.parse.urlencode(params)}"
+        else:
+            # Live uses v2 endpoint
+            auth_url = f"{base_auth_url}/v2/login/authorization/dialog?{urllib.parse.urlencode(params)}"
+
+        print("🔗 Redirecting to:", auth_url)
+        return RedirectResponse(auth_url)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Authentication setup failed: {str(e)}")
+
+@router.get("/debug/login")
+async def debug_login():
+    """Debug login configuration"""
+    config = get_upstox_config()
+    
+    debug_info = {
+        "environment": settings.ENVIRONMENT,
+        "client_id": config["client_id"],
+        "redirect_uri": config["redirect_uri"],
+        "auth_url": config["auth_url"],
+        "base_url": config["base_url"],
+        "has_client_id": bool(config["client_id"]),
+        "has_redirect_uri": bool(config["redirect_uri"])
+    }
+    
+    # Build the URL that would be used
     params = {
-        "client_id": CLIENT_ID,
-        "redirect_uri": REDIRECT_URL,
+        "client_id": config["client_id"],
+        "redirect_uri": config["redirect_uri"],
         "response_type": "code",
-        "scope": "orders placement portfolio trade-read trade-place profile",
-        "ucc": "TEST1234"  # ✅ required only for sandbox
+        "scope": "profile trade-read trade-place orders portfolio",
+        "state": "sandbox-auth",
     }
-
-    # ✅ correct sandbox endpoint
-    auth_url = f"https://api-sandbox.upstox.com/login/authorization/dialog?{urlencode(params)}"
-    print(f"🔗 Redirecting to Upstox Sandbox Login: {auth_url}")
-    return RedirectResponse(auth_url)
-# ============================================
-# CALLBACK - Handle OAuth response
-# ============================================
-@router.get("/callback")
-async def callback(request: Request):
-    try:
-        full_url = str(request.url)
-        print(f"🔍 FULL CALLBACK URL: {full_url}")
-
-        code = request.query_params.get("code")
-        if not code:
-            print("⚠️ No authorization code found in callback — likely a refresh or stray request.")
-            return JSONResponse(
-                status_code=200,
-                content={"status": "ignored", "reason": "no authorization code provided"}
-            )
-
-        # Exchange authorization code for token
-        token_url = f"{settings.UPSTOX_BASE_URL}/login/authorization/token"
-        data = {
-            "code": code,
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "redirect_uri": REDIRECT_URL,
-            "grant_type": "authorization_code",
-        }
-
-        print(f"🔍 TOKEN REQUEST DATA: {data}")
-        response = requests.post(token_url, data=data)
-        token_data = response.json()
-        print(f"🔍 TOKEN RESPONSE: {token_data}")
-
-        # Handle Upstox token structure (they return user info directly sometimes)
-        if "access_token" not in token_data:
-            # Some Upstox responses embed tokens under 'data'
-            if "data" in token_data and "access_token" in token_data["data"]:
-                token_data = token_data["data"]
-            else:
-                return JSONResponse(
-                    status_code=400,
-                    content={"error": "Failed to retrieve access token", "details": token_data}
-                )
-
-        # Get user profile
-        profile = get_user_profile(token_data["access_token"])
-        print(f"🔍 USER PROFILE: {profile}")
-
-        # Save to DB
-        upstox_user_id = await store_upstox_connection(profile, token_data)
-
-        print(f"✅ Upstox connection stored successfully for {profile.get('email')} ({upstox_user_id})")
-        return RedirectResponse(FRONTEND_SUCCESS)
-
-    except Exception as e:
-        print(f"❌ CALLBACK ERROR: {e}")
-        return RedirectResponse(f"{FRONTEND_ERROR}?error={str(e)}")
-
-
-# ============================================
-# DATABASE OPERATIONS
-# ============================================
-async def store_upstox_connection(profile: Dict[str, Any], token_data: Dict[str, Any]) -> str:
-    upstox_user_id = profile.get("user_id", "unknown")
-    user_name = profile.get("user_name", "Unknown User")
-    email = profile.get("email", "")
-
-    broker_doc = {
-        "broker_name": "upstox",
-        "broker_user_id": upstox_user_id,
-        "user_name": user_name,
-        "email": email,
-        "access_token": token_data["access_token"],
-        "refresh_token": token_data.get("refresh_token", ""),
-        "token_expiry": datetime.now() + timedelta(seconds=token_data.get("expires_in", 86400)),
-        "created_at": datetime.now(),
-        "last_used": datetime.now(),
-        "is_active": True,
-        "profile_data": profile
-    }
-
-    await brokers_collection.update_one(
-        {"broker_name": "upstox", "broker_user_id": upstox_user_id},
-        {"$set": broker_doc},
-        upsert=True
-    )
-
-    if email:
-        await users_collection.update_one(
-            {"email": email},
-            {
-                "$set": {
-                    "broker_connected": True,
-                    "broker_name": "upstox",
-                    "broker_user_id": upstox_user_id,
-                    "last_broker_connection": datetime.now()
-                },
-                "$addToSet": {"connected_brokers": "upstox"}
-            },
-            upsert=False
-        )
-
-    return upstox_user_id
-
-
-def get_user_profile(access_token: str) -> Dict[str, Any]:
-    headers = {"Authorization": f"Bearer {access_token}"}
-    response = requests.get(f"{settings.UPSTOX_BASE_URL}/user/profile", headers=headers)
-    data = response.json()
-    return data.get("data", data)
-
-async def get_valid_access_token(email: str) -> str:
-    """Get valid access token with automatic refresh if needed"""
-    conn = await get_upstox_connection(email=email)
-    if not conn:
-        raise HTTPException(status_code=404, detail="Upstox connection not found")
     
-    # Check if token needs refresh (5 minute buffer)
-    if conn["token_expiry"] - timedelta(minutes=5) < datetime.now():
-        print("🔄 Token expired or near expiry, attempting refresh...")
-        if not await refresh_upstox_token(conn["broker_user_id"]):
-            raise HTTPException(status_code=401, detail="Token refresh failed")
-        # Reload connection after refresh
-        conn = await get_upstox_connection(email=email)
-    
-    return conn["access_token"]
-async def get_upstox_connection(broker_user_id: str = None, email: str = None) -> Optional[Dict[str, Any]]:
-    query = {"broker_name": "upstox", "is_active": True}
-    if broker_user_id:
-        query["broker_user_id"] = broker_user_id
-    elif email:
-        user = await users_collection.find_one({"email": email})
-        if user and user.get("broker_user_id"):
-            query["broker_user_id"] = user["broker_user_id"]
-    return await brokers_collection.find_one(query)
-
-
-# ============================================
-# UTILITY: REFRESH TOKEN
-# ============================================
-async def refresh_upstox_token(broker_user_id: str) -> bool:
-    conn = await brokers_collection.find_one({"broker_name": "upstox", "broker_user_id": broker_user_id})
-    if not conn or not conn.get("refresh_token"):
-        return False
-
-    try:
-        data = {
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "refresh_token": conn["refresh_token"],
-            "grant_type": "refresh_token"
-        }
-        response = requests.post(f"{settings.UPSTOX_BASE_URL}/login/authorization/token", data=data)
-        new_tokens = response.json()
-
-        if "access_token" in new_tokens:
-            await brokers_collection.update_one(
-                {"broker_name": "upstox", "broker_user_id": broker_user_id},
-                {"$set": {
-                    "access_token": new_tokens["access_token"],
-                    "refresh_token": new_tokens.get("refresh_token", conn["refresh_token"]),
-                    "token_expiry": datetime.now() + timedelta(seconds=new_tokens.get("expires_in", 86400)),
-                    "last_used": datetime.now()
-                }}
-            )
-            return True
-    except Exception as e:
-        print(f"Token refresh failed: {e}")
-    return False
-
-
-# ============================================
-# UPSTOX API ROUTES
-# ============================================
-@router.get("/profile")
-async def get_profile(current_user: dict = Depends(get_current_user)):
-    conn = await get_upstox_connection(email=current_user.email)
-    if not conn:
-        raise HTTPException(status_code=404, detail="Upstox connection not found")
-    headers = {"Authorization": f"Bearer {conn['access_token']}"}
-    return requests.get(f"{settings.UPSTOX_BASE_URL}/user/profile", headers=headers).json()
-
-
-@router.get("/holdings")
-async def get_holdings(current_user: dict = Depends(get_current_user)):
-    conn = await get_upstox_connection(email=current_user.email)
-    if not conn:
-        raise HTTPException(status_code=404, detail="Upstox connection not found")
-    headers = {"Authorization": f"Bearer {conn['access_token']}"}
-    return requests.get(f"{settings.UPSTOX_BASE_URL}/portfolio/long-term-holdings", headers=headers).json()
-
-
-@router.get("/positions")
-async def get_positions(current_user: dict = Depends(get_current_user)):
-    conn = await get_upstox_connection(email=current_user.email)
-    if not conn:
-        raise HTTPException(status_code=404, detail="Upstox connection not found")
-    headers = {"Authorization": f"Bearer {conn['access_token']}"}
-    return requests.get(f"{settings.UPSTOX_BASE_URL}/portfolio/short-term-positions", headers=headers).json()
-
-
-@router.get("/orders")
-async def get_orders(current_user: dict = Depends(get_current_user)):
-    conn = await get_upstox_connection(email=current_user.email)
-    if not conn:
-        raise HTTPException(status_code=404, detail="Upstox connection not found")
-    headers = {"Authorization": f"Bearer {conn['access_token']}"}
-    return requests.get(f"{settings.UPSTOX_BASE_URL}/order/retrieve-all", headers=headers).json()
-
-
-@router.get("/margins")
-async def get_margins(current_user: dict = Depends(get_current_user)):
-    conn = await get_upstox_connection(email=current_user.email)
-    if not conn:
-        raise HTTPException(status_code=404, detail="Upstox connection not found")
-
-    headers = {"Authorization": f"Bearer {conn['access_token']}"}
-    endpoints_to_try = [
-        f"{settings.UPSTOX_BASE_URL}/user/margins",
-        f"{settings.UPSTOX_BASE_URL}/user/get-margins",
-       f"{settings.UPSTOX_BASE_URL}/margins",
-        f"{settings.UPSTOX_BASE_URL}/funds"
-    ]
-
-    for url in endpoints_to_try:
-        try:
-            r = requests.get(url, headers=headers)
-            if r.status_code == 200:
-                print(f"✅ Working margins endpoint: {url}")
-                return r.json()
-        except Exception:
-            continue
-
-    return {"error": "Could not fetch margins", "tried": endpoints_to_try}
-
-
-@router.post("/place-test-order")
-async def place_test_order(current_user: dict = Depends(get_current_user)):
-    conn = await get_upstox_connection(email=current_user.email)
-    if not conn:
-        raise HTTPException(status_code=404, detail="Upstox connection not found")
-
-    headers = {"Authorization": f"Bearer {conn['access_token']}"}
-    order = {
-        "quantity": 1,
-        "product": "D",
-        "validity": "DAY",
-        "price": 0,
-        "instrument_token": "NSE_EQ|INE002A01018",  # RELIANCE
-        "order_type": "MARKET",
-        "transaction_type": "BUY",
-        "disclosed_quantity": 0,
-        "trigger_price": 0,
-        "is_amo": False
-    }
-    return requests.post(f"{settings.UPSTOX_BASE_URL}/order/place", json=order, headers=headers).json()
-
-
-@router.get("/connections")
-async def get_connections(current_user: dict = Depends(get_current_user)):
-    connections = await brokers_collection.find(
-        {"email": current_user.email, "broker_name": "upstox", "is_active": True}
-    ).to_list(length=10)
-
-    for conn in connections:
-        if "_id" in conn:
-            conn["_id"] = str(conn["_id"])
-        for field in ["token_expiry", "created_at", "last_used"]:
-            if field in conn and isinstance(conn[field], datetime):
-                conn[field] = conn[field].isoformat()
-
-    return {"connections": connections}
-
-
-@router.get("/ltp/{symbol}")
-async def get_ltp(symbol: str, current_user: dict = Depends(get_current_user)):
-    conn = await get_upstox_connection(email=current_user.email)
-    if not conn:
-        raise HTTPException(status_code=404, detail="Upstox connection not found")
-    headers = {"Authorization": f"Bearer {conn['access_token']}"}
-    formatted_symbol = f"NSE:{symbol.upper()}"
-    return requests.get(f"{settings.UPSTOX_BASE_URL}/market-quote/ltp?symbol={formatted_symbol}", headers=headers).json()
-
-
-@router.post("/validate-order")
-async def validate_order(order_data: dict, current_user: dict = Depends(get_current_user)):
-    return {"status": "validated", "order_data": order_data, "message": "Order validated (not executed)"}
-@router.get("/mode")
-async def check_upstox_mode(current_user: dict = Depends(get_current_user)):
-    """Detect whether Upstox connection is Sandbox or Live"""
-    connection = await get_upstox_connection(email=current_user.email)
-    if not connection:
-        raise HTTPException(status_code=404, detail="Upstox connection not found")
-
-    token = connection["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-    response = requests.get(f"{settings.UPSTOX_BASE_URL}/user/profile", headers=headers)
-
-    try:
-        data = response.json().get("data", {})
-    except:
-        return {"mode": "unknown"}
-
-    if data.get("user_id", "").startswith("TEST"):
-        return {"mode": "sandbox"}
+    if settings.ENVIRONMENT.lower() == "sandbox":
+        params["ucc"] = "TEST1234"
+        debug_info["constructed_url"] = f"https://sandbox-api.upstox.com/login/authorization/dialog?{urllib.parse.urlencode(params)}"
     else:
-        return {"mode": "live"}
+        debug_info["constructed_url"] = f"{config['auth_url']}/v2/login/authorization/dialog?{urllib.parse.urlencode(params)}"
+    
+    return debug_info
+@router.get("/callback")
+async def upstox_callback(request: Request):
+    code = request.query_params.get("code")
+    error = request.query_params.get("error")
 
+    if error:
+        raise HTTPException(status_code=400, detail=f"Authentication failed: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="Authorization code not provided")
+
+    try:
+        response = await exchange_auth_code_for_token(code)
+        
+        try:
+            data = response.json()
+        except Exception:
+            data = {"raw": response.text}
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=data)
+
+        return {
+            "message": "✅ Token exchange successful",
+            "data": data,
+        }
+
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+# ---------------------------------------------------------------------
+# Single Order Placement
+# ---------------------------------------------------------------------
+@router.post("/order/place")
+async def place_order(order_request: OrderRequest):
+    """
+    Place an order using the Upstox Sandbox API.
+    Requires that a sandbox access token is available in .env.
+    """
+    try:
+        payload = order_request.dict()
+        response = await place_order_api(payload)
+        data = response.json()
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=data)
+
+        return {"message": "✅ Order placed successfully", "data": data}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+# ---------------------------------------------------------------------
+# Multiple Order Placement
+# ---------------------------------------------------------------------
+@router.post("/order/multi/place")
+async def place_multiple_orders(multi_order_request: MultiOrderRequest):
+    """
+    Place multiple orders using the Upstox API.
+    Requires that a sandbox access token is available in .env.
+    """
+    try:
+        payload = [order.dict() for order in multi_order_request.orders]
+        response = await place_multiple_orders_api(payload)
+        data = response.json()
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=data)
+
+        return {"message": "✅ Multiple orders placed successfully", "data": data}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+@router.get("/instruments/{instrument_token}")
+async def get_instrument_details(instrument_token: str):
+    """Get instrument details including lot size"""
+    config = get_upstox_config()
+    token = settings.UPSTOX_SANDBOX_ACCESS_TOKEN
+
+    if not token:
+        raise HTTPException(status_code=400, detail="Sandbox access token not configured")
+
+    url = f"{config['base_url']}/master/contract/{instrument_token}"
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.get(url, headers=headers)
+            data = response.json()
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=data)
+
+        return {"message": "✅ Instrument details fetched", "data": data}
+
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+@router.put("/order/modify")
+async def modify_order(modify_request: ModifyOrderRequest):
+    """
+    Modify an existing order using the Upstox HFT API.
+    Requires that an access token is available in .env.
+    """
+    try:
+        payload = modify_request.dict()
+        response = await modify_order_api(payload)
+        data = response.json()
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=data)
+
+        return {"message": "✅ Order modified successfully", "data": data}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+@router.get("/order/history")
+async def get_order_history(order_id: str):
+    """
+    Get order history for a specific order ID using the Upstox API.
+    Requires that an access token is available in .env.
+    """
+    try:
+        response = await get_order_history_api(order_id)
+        data = response.json()
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=data)
+
+        return {"message": "✅ Order history fetched successfully", "data": data}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+@router.get("/orders")
+async def get_all_orders(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(50, ge=1, le=500, description="Orders per page (1-500)"),
+    from_date: Optional[str] = Query(None, regex="^\d{4}-\d{2}-\d{2}$", description="From date (YYYY-MM-DD)"),
+    to_date: Optional[str] = Query(None, regex="^\d{4}-\d{2}-\d{2}$", description="To date (YYYY-MM-DD)"),
+    order_status: Optional[str] = Query(None, description="Filter by order status")
+):
+    """
+    Retrieve all orders with advanced filtering and pagination.
+    """
+    try:
+        # Validate date range
+        if from_date and to_date and from_date > to_date:
+            raise HTTPException(status_code=400, detail="from_date cannot be after to_date")
+
+        response = await get_all_orders_api(
+            page=page,
+            page_size=page_size,
+            from_date=from_date,
+            to_date=to_date,
+            order_status=order_status
+        )
+        data = response.json()
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=data)
+
+        return {
+            "message": "✅ Orders retrieved successfully",
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "has_more": len(data.get('data', [])) == page_size
+            },
+            "filters_applied": {
+                "from_date": from_date,
+                "to_date": to_date,
+                "order_status": order_status
+            },
+            "data": data
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+@router.put("/order/modify")
+async def modify_order(modify_request: ModifyOrderRequest):
+    """
+    Modify an existing order using the Upstox HFT API.
+    Works with both sandbox and live environments.
+    """
+    try:
+        payload = modify_request.dict()
+        response = await modify_order_api(payload)
+        data = response.json()
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=data)
+
+        return {"message": "✅ Order modified successfully", "data": data}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")

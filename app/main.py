@@ -11,31 +11,33 @@ from app.services.scheduler import start_scheduler, stop_scheduler
 
 async def startup():
     """Application startup tasks"""
-    # Start the scheduler
     await start_scheduler()
-    # ... other startup tasks
 
 async def shutdown():
     """Application shutdown tasks"""
-    # Stop the scheduler gracefully
     await stop_scheduler()
-    # ... other shutdown tasks
-
 
 app = FastAPI(
     title="VR1983 Trading Automation API",
     description="Trading automation platform with real-time signals and user watchlists",
     version="1.0.0",
-    docs_url="/docs",  # Swagger UI - /docs
-    redoc_url="/redoc"  # ReDoc - /redoc
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+# Include main router
 app.include_router(router)
 
-
+# ✅ ADD THIS: Include upstox router directly
+try:
+    from api.upstox import router as upstox_router
+    app.include_router(upstox_router)
+    print("✅ Upstox router included directly")
+except ImportError as e:
+    print(f"❌ Upstox router import failed: {e}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -45,13 +47,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-
 @app.get("/")
 async def root():
     return {"message": "Trading API Server Running", "docs": "/docs"}
-
-
 
 if __name__ == "__main__":
     import uvicorn
