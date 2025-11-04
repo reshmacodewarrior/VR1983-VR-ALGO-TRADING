@@ -166,13 +166,18 @@ async def get_all_orders_api(
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.get(url, headers=headers, params=params)
         return response
-async def modify_order_api(order_data: dict):
+async def modify_order_api(order_data: dict, access_token: str = None):
     """Service to modify an existing order"""
-    config = get_upstox_config()
-    token = settings.UPSTOX_SANDBOX_ACCESS_TOKEN
+    
+    # Use provided access token or fall back to settings
+    if access_token:
+        token = access_token
+    else:
+        config = get_upstox_config()
+        token = settings.UPSTOX_SANDBOX_ACCESS_TOKEN
 
     if not token:
-        raise ValueError("Sandbox access token not configured")
+        raise ValueError("Access token not provided and no sandbox token configured")
 
     # Use sandbox HFT API endpoint
     if settings.ENVIRONMENT.lower() == "sandbox":
@@ -186,6 +191,12 @@ async def modify_order_api(order_data: dict):
         "Content-Type": "application/json",
     }
 
-    async with httpx.AsyncClient(timeout=20) as client:
-        response = await client.put(url, headers=headers, json=order_data)
+    # Make the API call
+    async with httpx.AsyncClient() as client:
+        response = await client.put(
+            url,
+            json=order_data,
+            headers=headers,
+            timeout=30.0
+        )
         return response

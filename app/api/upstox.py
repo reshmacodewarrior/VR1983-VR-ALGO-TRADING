@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Header, Query, Request
 from fastapi.responses import RedirectResponse
 import urllib.parse
 
@@ -291,21 +291,65 @@ async def get_all_orders(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 @router.put("/order/modify")
-async def modify_order(modify_request: ModifyOrderRequest):
+async def modify_order(
+    modify_request: ModifyOrderRequest,
+    authorization: str = Header(..., description="Bearer token in format: Bearer <access_token>")
+):
     """
     Modify an existing order using the Upstox HFT API.
-    Works with both sandbox and live environments.
+    Uses token from Authorization header.
     """
     try:
+        # Extract and validate the access token
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=401, 
+                detail="Invalid authorization format. Use: Bearer <access_token>"
+            )
+        
+        access_token = authorization.split("Bearer ")[1].strip()
+        if not access_token:
+            raise HTTPException(
+                status_code=401, 
+                detail="Access token is required"
+            )
+
+        # Prepare payload
         payload = modify_request.dict()
-        response = await modify_order_api(payload)
+        
+        # Remove invalid fields for modify order
+        invalid_fields = ['status']
+        for field in invalid_fields:
+            if field in payload:
+                del payload[field]
+        
+        # Call service with the access token from header
+        response = await modify_order_api(payload, access_token)
         data = response.json()
 
         if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail=data)
+            # Handle specific Upstox error codes
+            error_detail = f"Upstox API error: {data}"
+            if response.status_code == 401:
+                error_detail = "Invalid or expired access token"
+            elif response.status_code == 400:
+                error_detail = f"Bad request: {data}"
+            elif response.status_code == 404:
+                error_detail = f"Order not found: {data}"
+            
+            raise HTTPException(
+                status_code=response.status_code, 
+                detail=error_detail
+            )
 
-        return {"message": "✅ Order modified successfully", "data": data}
+        return {
+            "message": "✅ Order modified successfully", 
+            "data": data,
+            "order_id": modify_request.order_id
+        }
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except httpx.RequestError as e:
