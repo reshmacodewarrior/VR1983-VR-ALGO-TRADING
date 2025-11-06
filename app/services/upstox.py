@@ -1,202 +1,146 @@
-from typing import Optional
-from app.config import settings
-import httpx
+import requests
+from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
+from config import settings
+from database.collections import users_collection, brokers_collection
+from schemas.upstox import UpstoxUserProfile, UpstoxConnection, UpstoxTokenResponse
 
-def get_upstox_config():
-    if settings.ENVIRONMENT.lower() == "sandbox":
-        return {
-            "client_id": settings.UPSTOX_SANDBOX_CLIENT_ID,
-            "client_secret": settings.UPSTOX_SANDBOX_CLIENT_SECRET,
-            "redirect_uri": settings.UPSTOX_SANDBOX_REDIRECT_URL,
-            "base_url": settings.UPSTOX_SANDBOX_BASE_URL,
-            "auth_url": settings.UPSTOX_SANDBOX_AUTH_URL,
+class UpstoxService:
+    def __init__(self):
+        self.client_id = settings.UPSTOX_CLIENT_ID
+        self.client_secret = settings.UPSTOX_CLIENT_SECRET
+        self.redirect_uri = settings.UPSTOX_REDIRECT_URL
+        self.base_url = settings.UPSTOX_BASE_URL
+
+    async def exchange_code_for_token(self, code: str) -> UpstoxTokenResponse:
+        """Exchange authorization code for access token"""
+        token_url = f"{self.base_url}/login/authorization/token"
+        data = {
+            "code": code,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "redirect_uri": self.redirect_uri,
+            "grant_type": "authorization_code"
         }
-    else:
-        return {
-            "client_id": settings.UPSTOX_LIVE_CLIENT_ID,
-            "client_secret": settings.UPSTOX_LIVE_CLIENT_SECRET,
-            "redirect_uri": settings.UPSTOX_LIVE_REDIRECT_URL,
-            "base_url": settings.UPSTOX_LIVE_BASE_URL,
-            "auth_url": settings.UPSTOX_LIVE_AUTH_URL,
+        
+        response = requests.post(token_url, data=data)
+        response.raise_for_status()
+        return UpstoxTokenResponse(**response.json())
+
+    def get_user_profile(self, access_token: str) -> UpstoxUserProfile:
+        """Fetch user profile from Upstox"""
+        headers = {"Authorization": f"Bearer {access_token}"}
+        response = requests.get(f"{self.base_url}/user/profile", headers=headers)
+        response.raise_for_status()
+        profile_data = response.json().get('data', {})
+        return UpstoxUserProfile(**profile_data)
+
+    async def store_connection(self, profile: UpstoxUserProfile, token_data: UpstoxTokenResponse) -> str:
+        """Store Upstox connection in database with validation"""
+        
+        # Validate critical fields
+        if not profile.user_id:
+            raise ValueError("User ID is missing from profile")
+        
+        broker_connection = {
+            "broker_name": "upstox",
+            "broker_user_id": profile.user_id,
+            "user_name": profile.user_name or "Unknown User",
+            "email": profile.email or "",
+            "access_token": token_data.access_token,
+            "refresh_token": token_data.refresh_token or "",
+            "token_expiry": datetime.now() + timedelta(seconds=token_data.expires_in or 86400),
+            "created_at": datetime.now(),
+            "last_used": datetime.now(),
+            "is_active": True,
+            "profile_data": profile.dict()
         }
-
-async def exchange_auth_code_for_token(code: str):
-    """Service to exchange authorization code for access token"""
-    config = get_upstox_config()
-    token_url = f"{config['base_url']}/login/authorization/token"
-
-    payload = {
-        "code": code,
-        "client_id": config["client_id"],
-        "client_secret": config["client_secret"],
-        "redirect_uri": config["redirect_uri"],
-        "grant_type": "authorization_code",
-    }
-
-    headers = {
-        "accept": "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-    }
-
-    async with httpx.AsyncClient(timeout=20) as client:
-        response = await client.post(token_url, headers=headers, data=payload)
-        return response
-
-async def place_order_api(order_data: dict):
-    """Service to place a single order"""
-    config = get_upstox_config()
-    token = settings.UPSTOX_SANDBOX_ACCESS_TOKEN
-
-    if not token:
-        raise ValueError("Sandbox access token not configured")
-
-    url = f"{config['base_url']}/order/place"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-
-    async with httpx.AsyncClient(timeout=20) as client:
-        response = await client.post(url, headers=headers, json=order_data)
-        return response
-
-async def place_multiple_orders_api(orders_data: list):
-    """Service to place multiple orders"""
-    config = get_upstox_config()
-    token = settings.UPSTOX_SANDBOX_ACCESS_TOKEN
-
-    if not token:
-        raise ValueError("Sandbox access token not configured")
-
-    url = f"{config['base_url']}/order/multi/place"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(url, headers=headers, json=orders_data)
-        return response
-    
-async def modify_order_api(order_data: dict):
-    """Service to modify an existing order"""
-    config = get_upstox_config()
-    token = settings.UPSTOX_SANDBOX_ACCESS_TOKEN
-
-    if not token:
-        raise ValueError("Access token not configured")
-
-    # Note: Different base URL for HFT API
-    if settings.ENVIRONMENT.lower() == "sandbox":
-        url = "https://api-hft.upstox.com/v3/order/modify"
-    else:
-        url = "https://api-hft.upstox.com/v3/order/modify"
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-
-    async with httpx.AsyncClient(timeout=20) as client:
-        response = await client.put(url, headers=headers, json=order_data)
-        return response
-    
-async def get_order_history_api(order_id: str):
-    """Service to get order history"""
-    config = get_upstox_config()
-    token = settings.UPSTOX_SANDBOX_ACCESS_TOKEN
-
-    if not token:
-        raise ValueError("Access token not configured")
-
-    url = f"{config['base_url']}/order/history"
-    
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-
-    params = {
-        "order_id": order_id
-    }
-
-    async with httpx.AsyncClient(timeout=20) as client:
-        response = await client.get(url, headers=headers, params=params)
-        return response
-    
-async def get_all_orders_api(
-    page: int = 1, 
-    page_size: int = 50,
-    from_date: Optional[str] = None,
-    to_date: Optional[str] = None,
-    order_status: Optional[str] = None
-):
-    """Service to get all orders with pagination and filtering"""
-    config = get_upstox_config()
-    token = settings.UPSTOX_SANDBOX_ACCESS_TOKEN
-
-    if not token:
-        raise ValueError("Access token not configured")
-
-    url = f"{config['base_url']}/order/retrieve-all"
-    
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-
-    params = {
-        "page": page,
-        "page_size": page_size
-    }
-    
-    # Add optional filters
-    if from_date:
-        params["from_date"] = from_date
-    if to_date:
-        params["to_date"] = to_date
-    if order_status:
-        params["order_status"] = order_status
-
-    async with httpx.AsyncClient(timeout=20) as client:
-        response = await client.get(url, headers=headers, params=params)
-        return response
-async def modify_order_api(order_data: dict, access_token: str = None):
-    """Service to modify an existing order"""
-    
-    # Use provided access token or fall back to settings
-    if access_token:
-        token = access_token
-    else:
-        config = get_upstox_config()
-        token = settings.UPSTOX_SANDBOX_ACCESS_TOKEN
-
-    if not token:
-        raise ValueError("Access token not provided and no sandbox token configured")
-
-    # Use sandbox HFT API endpoint
-    if settings.ENVIRONMENT.lower() == "sandbox":
-        url = "https://api-hft.upstox.com/v3/order/modify"
-    else:
-        url = "https://api-hft.upstox.com/v3/order/modify"
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-
-    # Make the API call
-    async with httpx.AsyncClient() as client:
-        response = await client.put(
-            url,
-            json=order_data,
-            headers=headers,
-            timeout=30.0
+        
+        print(f"💾 Storing connection for user: {profile.user_id}")
+        print(f"💾 User name: {profile.user_name}")
+        print(f"💾 Email: {profile.email}")
+        
+        # Upsert broker connection
+        result = await brokers_collection.update_one(
+            {"broker_name": "upstox", "broker_user_id": profile.user_id},
+            {"$set": broker_connection},
+            upsert=True
         )
-        return response
+        
+        print(f"💾 Database operation: matched={result.matched_count}, modified={result.modified_count}")
+        
+        return profile.user_id
+    async def get_active_connection(self, broker_user_id: str = None, email: str = None) -> Optional[Dict[str, Any]]:
+        """Retrieve active Upstox connection from database"""
+        query = {"broker_name": "upstox", "is_active": True}
+        
+        if broker_user_id:
+            query["broker_user_id"] = broker_user_id
+        elif email:
+            user = await users_collection.find_one({"email": email})
+            if user and user.get('broker_user_id'):
+                query["broker_user_id"] = user['broker_user_id']
+        
+        return await brokers_collection.find_one(query)
+
+    async def refresh_token(self, broker_user_id: str) -> bool:
+        """Refresh Upstox access token"""
+        connection = await self.get_active_connection(broker_user_id)
+        if not connection or not connection.get('refresh_token'):
+            return False
+        
+        refresh_data = {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "refresh_token": connection['refresh_token'],
+            "grant_type": "refresh_token"
+        }
+        
+        try:
+            response = requests.post(
+                f"{self.base_url}/login/authorization/token",
+                data=refresh_data
+            )
+            new_tokens = UpstoxTokenResponse(**response.json())
+            
+            await brokers_collection.update_one(
+                {"broker_name": "upstox", "broker_user_id": broker_user_id},
+                {"$set": {
+                    "access_token": new_tokens.access_token,
+                    "refresh_token": new_tokens.refresh_token or connection['refresh_token'],
+                    "token_expiry": datetime.now() + timedelta(seconds=new_tokens.expires_in or 86400),
+                    "last_used": datetime.now()
+                }}
+            )
+            return True
+        except Exception:
+            return False
+
+    async def get_connection_status(self) -> Dict[str, Any]:
+        """Check connection status with better error handling"""
+        connection = await self.get_active_connection()
+        print(f"🔍 Connection found: {connection}")  # Debug log
+        
+        if connection:
+            return {
+                "connected": True,
+                "user_id": connection.get('broker_user_id'),
+                "user_name": connection.get('user_name'),
+                "email": connection.get('email'),
+                "connected_since": connection.get('created_at'),
+                "token_valid": connection.get('token_expiry', datetime.now()) > datetime.now()
+            }
+        return {"connected": False}
+    def construct_auth_url(self) -> str:
+        """Construct Upstox authorization URL"""
+        from urllib.parse import urlencode
+        params = {
+            "client_id": self.client_id,
+            "redirect_uri": self.redirect_uri,
+            "response_type": "code",
+            "scope": "orders placement portfolio trade-read trade-place profile"
+        }
+        return f"{self.base_url}/login/authorization/dialog?{urlencode(params)}"
+
+# Service instance
+upstox_service = UpstoxService()
