@@ -1,14 +1,15 @@
-import datetime
-from typing import Any, Dict
+# api/upstox.py - UPDATED
+from datetime import datetime, timedelta  # Add this import at the top
+from typing import Any, Dict, List
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from urllib.parse import parse_qs, urlparse
-from database.collections import users_collection, brokers_collection
+from database.collections import users_collection, brokers_collection,trading_signals_collection,trading_orders_collection
 import requests
 from app.schemas.user import UserInDB
 from app.services.user import get_current_user
-from schemas.upstox import DebugConfig, ConnectionStatus
+from schemas.upstox import DebugConfig, ConnectionStatus, MultiOrderRequest, MultiOrderResponse, UpstoxMultiOrder
 from services.upstox import upstox_service
 
 router = APIRouter(prefix="/api/upstox", tags=["Upstox"])
@@ -35,15 +36,11 @@ async def callback(request: Request, current_user: UserInDB = Depends(get_curren
         query_params = parse_qs(parsed_url.query)
         code_list = query_params.get('code', [])
         
-        # Check for existing connection FOR THIS USER
-        existing_connection = await brokers_collection.find_one({
-            "user_id": str(current_user.id),  # ← Check for this specific user
-            "broker_name": "upstox", 
-            "status": "active"
-        })
+        # Check for existing connection
+        existing_connection = await upstox_service.get_active_connection_for_user(str(current_user.id))
         
         if existing_connection:
-            user_id = existing_connection.get('broker_user_id') or existing_connection.get('user_profile', {}).get('user_id')
+            user_id = existing_connection.get('broker_user_id')
             print(f"✅ Upstox connection already exists for user: {user_id}")
             return RedirectResponse(f"http://localhost:3000/connection-success?user_id={user_id}&status=already_connected")
         
@@ -59,8 +56,8 @@ async def callback(request: Request, current_user: UserInDB = Depends(get_curren
         # Get user profile
         profile = upstox_service.get_user_profile(token_data.access_token)
         
-        # Store connection WITH USER ID
-        user_id = await store_upstox_connection_for_user(profile, token_data, current_user)
+        # ✅ Use the corrected service method
+        user_id = await upstox_service.store_connection_for_user(profile, token_data, str(current_user.id))
         
         print(f"✅ Successfully connected Upstox for user: {user_id}")
         return RedirectResponse(f"http://localhost:3000/connection-success?user_id={user_id}")
@@ -69,61 +66,303 @@ async def callback(request: Request, current_user: UserInDB = Depends(get_curren
         print(f"🔐 Callback error: {str(e)}")
         return RedirectResponse(f"http://localhost:3000/connection-error?error={str(e)}")
 
-async def store_upstox_connection_for_user(profile: Dict[str, Any], token_data: Dict[str, Any], current_user: UserInDB) -> str:
-    """Store Upstox connection for specific user"""
+@router.post("/order/place")
+async def place_order(
+    order_data: Dict[str, Any],
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """
+    Place an order through Upstox (SIMPLIFIED - no token refresh)
+    """
+    try:
+        # Get user's Upstox connection
+        broker_connection = await brokers_collection.find_one({
+            "user_id": str(current_user.id),
+            "broker_name": "upstox",
+            "status": "active"
+        })
+        
+        if not broker_connection:
+            raise HTTPException(
+                status_code=400,
+                detail="Upstox connection not found. Please connect your Upstox account first."
+            )
+        
+        # 🔓 DECRYPT the access token
+        encrypted_token = broker_connection.get('access_token')
+        access_token = decrypt_data(encrypted_token)
+        
+        print(f"✅ Using decrypted token: {access_token[:30]}...")
+        
+        # Test the token first
+        headers = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'}
+        test_response = requests.get('https://api.upstox.com/v2/user/profile', headers=headers, timeout=10)
+        
+        if test_response.status_code != 200:
+            print(f"❌ Token is invalid: {test_response.status_code}")
+            return {
+                "success": False,
+                "message": "Token is invalid. Please reconnect your Upstox account.",
+                "error": test_response.text
+            }
+        
+        # Prepare headers for order placement
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {access_token}'
+        }
+        
+        print(f"📤 Placing order...")
+        
+        # Make API call to Upstox
+        response = requests.post(
+            'https://api.upstox.com/v2/order/place',
+            headers=headers,
+            json=order_data,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            order_response = response.json()
+            print(f"✅ Order placed successfully!")
+            return {
+                "success": True,
+                "message": "Order placed successfully",
+                "data": order_response
+            }
+        else:
+            error_detail = f"Upstox API error: {response.status_code} - {response.text}"
+            print(f"❌ Order placement failed: {error_detail}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=error_detail
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Order placement error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to place order: {str(e)}"
+        )
+@router.get("/debug/connections")
+async def debug_connections(current_user: UserInDB = Depends(get_current_user)):
+    """Debug all connections for current user"""
+    connections = await brokers_collection.find({
+        "user_id": str(current_user.id)
+    }).to_list(length=10)
     
-    broker_connection = {
-        "user_id": str(current_user.id),  # ← Your app's user ID
-        "broker_name": "upstox",
-        "broker_user_id": "upstox_user_id",  # ← Upstox's user ID
-        "user_name": profile.get('user_name'),
-        "email": profile.get('email'),
-        "access_token": token_data['access_token'],
-        "refresh_token": token_data.get('refresh_token', ''),
-        "token_expiry": datetime.now() + datetime.timedelta(seconds=token_data.get('expires_in', 86400)),
-        "created_at": datetime.now(),
-        "last_used": datetime.now(),
-        "is_active": True,
-        "status": "active",
-        "profile_data": profile
+    for conn in connections:
+        conn["_id"] = str(conn["_id"])
+    
+    return {"connections": connections}
+
+@router.get("/debug/validate-token")
+async def debug_validate_token(current_user: UserInDB = Depends(get_current_user)):
+    """Validate if token works with Upstox API"""
+    broker_connection = await upstox_service.get_active_connection_for_user(str(current_user.id))
+    
+    if not broker_connection:
+        return {"valid": False, "error": "No connection found"}
+    
+    access_token = broker_connection.get('access_token')
+    
+    # Test token with profile API
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {access_token}'
     }
     
-    # Upsert the broker connection FOR THIS USER
-    result = await broker_connection.update_one(
-        {
-            "user_id": str(current_user.id),
-            "broker_name": "upstox"
-        },
-        {"$set": broker_connection},
-        upsert=True
-    )
+    try:
+        response = requests.get(
+            'https://api.upstox.com/v2/user/profile',
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            return {"valid": True, "message": "Token is valid", "profile": response.json()}
+        else:
+            return {"valid": False, "error": f"Token validation failed: {response.status_code}", "details": response.text}
+            
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+@router.get("/debug/token-raw")
+async def debug_token_raw(current_user: UserInDB = Depends(get_current_user)):
+    """Debug raw token data from database"""
+    broker_connection = await brokers_collection.find_one({
+        "user_id": str(current_user.id),
+        "broker_name": "upstox"
+    })
     
-    # Update the main users collection
-    await users_collection.update_one(
-        {"_id": ObjectId(current_user.id)},
-        {
-            "$set": {
-                "broker_connected": True,
-                "broker_name": "upstox",
-                "broker_user_id": profile.get('user_id'),
-                "last_broker_connection": datetime.now()
-            },
-            "$addToSet": {
-                "connected_brokers": "upstox"
-            }
+    if not broker_connection:
+        return {"error": "No broker connection found"}
+    
+    return {
+        "has_access_token": bool(broker_connection.get('access_token')),
+        "access_token_length": len(broker_connection.get('access_token', '')),
+        "access_token_preview": broker_connection.get('access_token', '')[:50] + "..." if broker_connection.get('access_token') else None,
+        "has_refresh_token": bool(broker_connection.get('refresh_token')),
+        "refresh_token_preview": broker_connection.get('refresh_token', '')[:20] + "..." if broker_connection.get('refresh_token') else None,
+        "token_expiry": broker_connection.get('token_expiry'),
+        "current_time": datetime.datetime.now(),
+        "is_expired": broker_connection.get('token_expiry') and broker_connection.get('token_expiry') < datetime.datetime.now(),
+        "broker_user_id": broker_connection.get('broker_user_id'),
+        "user_name": broker_connection.get('user_name')
+    }
+@router.get("/debug/decrypted-token")
+async def debug_decrypted_token(current_user: UserInDB = Depends(get_current_user)):
+    """Check the decrypted token"""
+    token_data = await upstox_service.get_decrypted_tokens_for_user(str(current_user.id))
+    
+    if not token_data:
+        return {"error": "No token data found"}
+    
+    access_token = token_data['access_token']
+    
+    # Analyze the decrypted token
+    token_analysis = {
+        'length': len(access_token),
+        'preview': access_token[:50] + "..." if len(access_token) > 50 else access_token,
+        'is_jwt': access_token.startswith('eyJ'),
+        'parts': len(access_token.split('.')),
+        'starts_with_eyJ': access_token.startswith('eyJ')
+    }
+    
+    # Test the decrypted token
+    headers = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'}
+    try:
+        response = requests.get('https://api.upstox.com/v2/user/profile', headers=headers, timeout=10)
+        token_analysis['api_test'] = {
+            'status_code': response.status_code,
+            'valid': response.status_code == 200
         }
-    )
+    except Exception as e:
+        token_analysis['api_test'] = {'error': str(e)}
     
-    return profile.get('user_id')
+    return {
+        'token_analysis': token_analysis,
+        'has_refresh_token': bool(token_data.get('refresh_token')),
+        'token_expiry': token_data.get('token_expiry'),
+        'is_expired': token_data.get('token_expiry') and token_data.get('token_expiry') < datetime.datetime.now()
+    }
+# Add this to your api/upstox.py (TEMPORARY - for testing)
 
-@router.get("/debug/login", response_model=DebugConfig)
-async def debug_login():
-    """Debug endpoint to check Upstox configuration"""
+import base64
+import hashlib
+from cryptography.fernet import Fernet
+
+def decrypt_data(encrypted_data: str) -> str:
+    """EXACT SAME decryption as api/broker.py"""
+    if not encrypted_data:
+        return ""
+    
+    try:
+        # Use the SAME secret key as broker.py
+        from config import settings
+        key = settings.SECRET_KEY
+        
+        # Create Fernet instance with the SAME key derivation
+        fernet = Fernet(base64.urlsafe_b64encode(hashlib.sha256(key.encode()).digest()))
+        
+        # Decrypt the data
+        decrypted = fernet.decrypt(encrypted_data.encode()).decode()
+        
+        print(f"🔓 Decryption successful:")
+        print(f"   Encrypted: {encrypted_data[:50]}...")
+        print(f"   Decrypted: {decrypted[:50]}...")
+        
+        return decrypted
+        
+    except Exception as e:
+        print(f"❌ Decryption failed: {str(e)}")
+        # Return the original, might help with debugging
+        return encrypted_data
+
+@router.get("/debug/decryption-test")
+async def debug_decryption_test(current_user: UserInDB = Depends(get_current_user)):
+    """Test decryption with different approaches"""
+    broker_connection = await brokers_collection.find_one({
+        "user_id": str(current_user.id),
+        "broker_name": "upstox"
+    })
+    
+    if not broker_connection:
+        return {"error": "No connection found"}
+    
+    encrypted_token = broker_connection.get('access_token', '')
+    
+    # Test 1: Direct decryption
+    decrypted_1 = decrypt_data(encrypted_token)
+    
+    # Test 2: Check if it's base64 encoded
+    try:
+        import base64
+        decoded_base64 = base64.b64decode(encrypted_token).decode('utf-8')
+    except:
+        decoded_base64 = "Not base64"
+    
+    return {
+        "encrypted_length": len(encrypted_token),
+        "encrypted_preview": encrypted_token[:100],
+        "decrypted_1_length": len(decrypted_1),
+        "decrypted_1_preview": decrypted_1[:100],
+        "decrypted_1_is_jwt": decrypted_1.startswith('eyJ'),
+        "base64_decoded": decoded_base64[:100] if decoded_base64 != "Not base64" else "Not base64"
+    }
+@router.post("/force-reconnect")
+async def force_reconnect(current_user: UserInDB = Depends(get_current_user)):
+    """Force reconnect by deleting old connection and providing new auth URL"""
+    
+    # Delete ALL existing Upstox connections for this user
+    result = await brokers_collection.delete_many({
+        "user_id": str(current_user.id),
+        "broker_name": "upstox"
+    })
+    
+    print(f"🗑️ Deleted {result.deleted_count} old Upstox connections")
+    
+    # Get new auth URL
     auth_url = upstox_service.construct_auth_url()
-    return DebugConfig(
-        client_id=upstox_service.client_id,
-        redirect_uri=upstox_service.redirect_uri,
-        has_client_id=bool(upstox_service.client_id),
-        has_client_secret=bool(upstox_service.client_secret),
-        constructed_auth_url=auth_url
-    )
+    
+    return {
+        "message": "Please reconnect using the URL below",
+        "auth_url": auth_url,
+        "deleted_connections": result.deleted_count
+    }
+@router.get("/debug/live-activity")
+async def get_live_activity(current_user: UserInDB = Depends(get_current_user)):
+    """Get real-time trading activity"""
+    user_id = str(current_user.id)
+    
+    # Recent signals (last 1 hour)
+    recent_signals = await trading_signals_collection.find({
+        "user_id": user_id,
+        "timestamp": {"$gte": datetime.now() - timedelta(hours=1)}
+    }).sort("timestamp", -1).to_list(length=20)
+    
+    # Recent orders (last 1 hour) 
+    recent_orders = await trading_orders_collection.find({
+        "user_id": user_id,
+        "placed_at": {"$gte": datetime.now() - timedelta(hours=1)}
+    }).sort("placed_at", -1).to_list(length=20)
+    
+    # Format response
+    for signal in recent_signals:
+        signal["_id"] = str(signal["_id"])
+        if 'strategy_id' in signal:
+            signal["strategy_id"] = str(signal["strategy_id"])
+    
+    for order in recent_orders:
+        order["_id"] = str(order["_id"])
+        order["signal_id"] = str(order["signal_id"])
+    
+    return {
+        "signals_last_hour": len(recent_signals),
+        "orders_last_hour": len(recent_orders),
+        "recent_signals": recent_signals,
+        "recent_orders": recent_orders,
+        "checked_at": datetime.now()
+    }

@@ -25,6 +25,8 @@ backtests_collection = db.get_collection("backtests")
 strategy_orders_collection = db.get_collection("strategy_orders")
 trading_signals_collection = db.get_collection("trading_signals")
 user_signals_collection = db.get_collection("user_signals")
+trading_orders_collection = db.get_collection("trading_orders")  # For automated orders
+market_data_collection = db.get_collection("market_data")  # For storing price data
 
 # database/collections.py - UPDATE WITH USER-BASED OPERATIONS
 async def create_strategy(strategy_data: Dict[str, Any]) -> str:

@@ -46,3 +46,45 @@ class DebugConfig(BaseModel):
     has_client_id: bool
     has_client_secret: bool
     constructed_auth_url: str
+
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from decimal import Decimal
+
+class UpstoxOrder(BaseModel):
+    quantity: int
+    product: str = "D"
+    validity: str = "DAY"
+    price: float = 0
+    tag: str = "string"
+    instrument_token: str
+    order_type: str
+    transaction_type: str
+    disclosed_quantity: int = 0
+    trigger_price: float = 0
+    is_amo: bool = False
+    slice: bool = True
+
+class UpstoxMultiOrder(BaseModel):
+    correlation_id: str = Field(..., description="Unique identifier for each order in the batch")
+    quantity: int
+    product: str = "D"
+    validity: str = "DAY"
+    price: float = 0
+    tag: str = "string"
+    instrument_token: str
+    order_type: str
+    transaction_type: str
+    disclosed_quantity: int = 0
+    trigger_price: float = 0
+    is_amo: bool = False
+    slice: bool = False
+
+class MultiOrderRequest(BaseModel):
+    orders: List[UpstoxMultiOrder] = Field(..., min_items=1, max_items=10, description="List of orders to place (max 10 orders)")
+
+class MultiOrderResponse(BaseModel):
+    success: bool
+    message: str
+    data: List[dict]
+    failed_orders: List[dict] = []

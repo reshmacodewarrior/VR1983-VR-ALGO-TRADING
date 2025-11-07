@@ -1,4 +1,3 @@
-# services/enhanced_algorithm.py
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -6,6 +5,10 @@ from datetime import datetime, timedelta
 import logging
 from typing import Dict, List, Optional, Tuple
 import warnings
+import asyncio
+from database.collections import brokers_collection
+from app.schemas.user import UserInDB
+
 warnings.filterwarnings('ignore')
 
 logger = logging.getLogger(__name__)
@@ -56,7 +59,9 @@ class EnhancedTradingAlgorithm:
     def get_enhanced_price_data(self, symbol: str, period: str = "5d", interval: str = "15m") -> Optional[Dict]:
         """Get comprehensive price data with multiple fallbacks"""
         try:
-            stock = yf.Ticker(symbol)
+            # Convert symbol to yfinance format (e.g., "RELIANCE" -> "RELIANCE.NS")
+            yf_symbol = f"{symbol}.NS"
+            stock = yf.Ticker(yf_symbol)
             
             # Try 15-minute data first
             hist = stock.history(period=period, interval=interval)
@@ -213,16 +218,19 @@ class EnhancedTradingAlgorithm:
             logger.error(f"Multi-timeframe analysis error for {symbol}: {e}")
             return {"signal": "HOLD", "confidence": 0, "reason": f"Analysis error: {e}"}
 
-    def calculate_position_size(self, price: float, confidence: int) -> int:
+    def calculate_position_size(self, price: float, confidence: int, user_capital: float = None) -> int:
         """Dynamic position sizing based on confidence"""
+        if user_capital is None:
+            user_capital = self.current_capital
+            
         risk_per_trade = 0.02  # Risk 2% of capital per trade
-        risk_amount = self.current_capital * risk_per_trade
+        risk_amount = user_capital * risk_per_trade
         
         # Adjust for confidence
         confidence_multiplier = confidence / 100
         position_size = int((risk_amount * confidence_multiplier) / price)
         
-        return max(1, min(50, position_size))  # Limit between 1 and 50 shares
+        return max(1, min(100, position_size))  # Limit between 1 and 100 shares
 
     def calculate_exit_prices(self, signal: str, entry_price: float) -> Tuple[float, float]:
         """Calculate stop loss and take profit"""
@@ -235,90 +243,139 @@ class EnhancedTradingAlgorithm:
         
         return stop_loss, take_profit
 
-    def generate_orders(self, signal: str, symbol: str, price: float, quantity: int, 
-                       stop_loss: float, take_profit: float) -> List[Dict]:
-        """Generate comprehensive order structure"""
+    def generate_upstox_orders(self, signal: str, symbol: str, quantity: int) -> List[Dict]:
+        """Generate Upstox-compatible order structure"""
         orders = []
         timestamp = datetime.utcnow().isoformat()
-        base_id = f"{symbol}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        correlation_id = f"{symbol}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        
+        # Map symbol to Upstox instrument token (you'll need to implement this mapping)
+        instrument_token = self.map_symbol_to_instrument_token(symbol)
         
         if signal == "BUY":
-            # Main entry order
+            # Main market buy order
             orders.append({
-                "order_id": f"{base_id}_MARKET_BUY",
-                "symbol": symbol,
-                "order_type": "MARKET_ORDER",
-                "action": "BUY",
+                "correlation_id": f"{correlation_id}_BUY",
                 "quantity": quantity,
-                "price": "MARKET_PRICE",
-                "estimated_price": round(price, 2),
-                "timestamp": timestamp
-            })
-            
-            # Stop loss
-            orders.append({
-                "order_id": f"{base_id}_STOP_LOSS_SELL",
-                "symbol": symbol,
-                "order_type": "STOP_MARKET_SELL",
-                "action": "SELL",
-                "quantity": quantity,
-                "stop_price": round(stop_loss, 2),
-                "timestamp": timestamp
-            })
-            
-            # Take profit
-            orders.append({
-                "order_id": f"{base_id}_TAKE_PROFIT_SELL",
-                "symbol": symbol,
-                "order_type": "LIMIT_SELL",
-                "action": "SELL",
-                "quantity": quantity,
-                "limit_price": round(take_profit, 2),
-                "timestamp": timestamp
+                "product": "D",
+                "validity": "DAY",
+                "price": 0,
+                "tag": "algo_buy",
+                "instrument_token": instrument_token,
+                "order_type": "MARKET",
+                "transaction_type": "BUY",
+                "disclosed_quantity": 0,
+                "trigger_price": 0,
+                "is_amo": False,
+                "slice": True
             })
             
         elif signal == "SELL":
-            # Main entry order
+            # Main market sell order
             orders.append({
-                "order_id": f"{base_id}_MARKET_SELL",
-                "symbol": symbol,
-                "order_type": "MARKET_ORDER",
-                "action": "SELL",
+                "correlation_id": f"{correlation_id}_SELL",
                 "quantity": quantity,
-                "price": "MARKET_PRICE",
-                "estimated_price": round(price, 2),
-                "timestamp": timestamp
-            })
-            
-            # Stop loss
-            orders.append({
-                "order_id": f"{base_id}_STOP_LOSS_BUY",
-                "symbol": symbol,
-                "order_type": "STOP_MARKET_BUY",
-                "action": "BUY",
-                "quantity": quantity,
-                "stop_price": round(stop_loss, 2),
-                "timestamp": timestamp
-            })
-            
-            # Take profit
-            orders.append({
-                "order_id": f"{base_id}_TAKE_PROFIT_BUY",
-                "symbol": symbol,
-                "order_type": "LIMIT_BUY",
-                "action": "BUY",
-                "quantity": quantity,
-                "limit_price": round(take_profit, 2),
-                "timestamp": timestamp
+                "product": "D",
+                "validity": "DAY",
+                "price": 0,
+                "tag": "algo_sell",
+                "instrument_token": instrument_token,
+                "order_type": "MARKET",
+                "transaction_type": "SELL",
+                "disclosed_quantity": 0,
+                "trigger_price": 0,
+                "is_amo": False,
+                "slice": True
             })
         
         return orders
 
-    def enhanced_trading_algorithm(self, symbol: str) -> Dict:
+    def map_symbol_to_instrument_token(self, symbol: str) -> str:
         """
-        Main enhanced trading algorithm
+        Map stock symbol to Upstox instrument token
+        You need to implement proper mapping based on your instrument list
+        """
+        # Example mapping - you should replace this with actual mapping
+        token_mapping = {
+            "RELIANCE": "NSE_EQ|INE002A01018",
+            "TCS": "NSE_EQ|INE467B01029",
+            "INFY": "NSE_EQ|INE009A01021",
+            "HDFC": "NSE_EQ|INE001A01036",
+            "ICICIBANK": "NSE_EQ|INE090A01021"
+        }
+        
+        return token_mapping.get(symbol, f"NSE_EQ|{symbol}")
+
+    async def place_upstox_orders(self, user_id: str, orders: List[Dict]) -> Dict:
+        """Place orders on Upstox for a specific user"""
+        try:
+            # Get user's Upstox connection
+            broker_connection = await brokers_collection.find_one({
+                "user_id": user_id,
+                "broker_name": "upstox",
+                "status": "active"
+            })
+            
+            if not broker_connection:
+                return {"success": False, "error": "Upstox connection not found"}
+            
+            access_token = broker_connection.get('access_token')
+            if not access_token:
+                return {"success": False, "error": "No access token found"}
+            
+            # Prepare headers for Upstox API
+            headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': f'Bearer {access_token}'
+            }
+            
+            # Place orders using Upstox multi-order API
+            import requests
+            response = requests.post(
+                'https://api.upstox.com/v2/order/multi/place',
+                headers=headers,
+                json=orders,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                order_responses = response.json()
+                
+                # Store order in database
+                order_record = {
+                    "user_id": user_id,
+                    "broker_name": "upstox",
+                    "orders_placed": orders,
+                    "api_response": order_responses,
+                    "timestamp": datetime.utcnow(),
+                    "status": "placed"
+                }
+                
+                await brokers_collection.insert_one(order_record)
+                
+                return {
+                    "success": True,
+                    "message": f"Successfully placed {len(orders)} orders",
+                    "data": order_responses
+                }
+            else:
+                error_detail = f"Upstox API error: {response.status_code} - {response.text}"
+                logger.error(f"❌ Order placement failed: {error_detail}")
+                return {"success": False, "error": error_detail}
+                
+        except Exception as e:
+            logger.error(f"❌ Order placement error: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    async def enhanced_trading_algorithm_with_auto_order(self, symbol: str, user_data: dict) -> Dict:
+        """
+        Main enhanced trading algorithm with automatic order placement
         """
         try:
+            user_id = str(user_data['_id'])
+            user_email = user_data.get('email', 'unknown')
+            
             # Get multi-timeframe analysis
             analysis = self.multi_timeframe_analysis(symbol)
             
@@ -332,18 +389,30 @@ class EnhancedTradingAlgorithm:
                     "timeframe": "15min",
                     "timestamp": datetime.utcnow().isoformat(),
                     "reason": analysis.get('reason', 'Low confidence'),
-                    "orders": []
+                    "orders_placed": False,
+                    "order_response": None
                 }
             
-            # Calculate position and exit prices
+            # Calculate position and generate Upstox orders
             current_price = analysis['price']
             quantity = self.calculate_position_size(current_price, analysis['confidence'])
-            stop_loss, take_profit = self.calculate_exit_prices(analysis['signal'], current_price)
+            upstox_orders = self.generate_upstox_orders(analysis['signal'], symbol, quantity)
             
-            # Generate orders
-            orders = self.generate_orders(
-                analysis['signal'], symbol, current_price, quantity, stop_loss, take_profit
-            )
+            # Place orders automatically
+            order_result = await self.place_upstox_orders(user_id, upstox_orders)
+            
+            # Enhanced logging
+            if order_result.get('success'):
+                logger.warning(
+                    f"🚀 AUTO ORDER EXECUTED for {user_email}: "
+                    f"{analysis['signal']} {quantity} shares of {symbol} @ ~{current_price:.2f} | "
+                    f"Confidence: {analysis['confidence']}%"
+                )
+            else:
+                logger.error(
+                    f"❌ AUTO ORDER FAILED for {user_email}: "
+                    f"{analysis['signal']} {symbol} | Error: {order_result.get('error')}"
+                )
             
             return {
                 "signal": analysis['signal'],
@@ -353,11 +422,12 @@ class EnhancedTradingAlgorithm:
                 "confidence": analysis['confidence'],
                 "strategy": "Enhanced Multi-Timeframe",
                 "timeframe": "15min",
-                "stop_loss": round(stop_loss, 2),
-                "take_profit": round(take_profit, 2),
                 "timestamp": datetime.utcnow().isoformat(),
                 "indicators": analysis.get('indicators', {}),
-                "orders": orders,
+                "upstox_orders": upstox_orders,
+                "orders_placed": order_result.get('success', False),
+                "order_response": order_result,
+                "user_email": user_email,
                 "analysis": {
                     "trend": "Bullish" if analysis['signal'] == 'BUY' else "Bearish",
                     "momentum": "Strong" if analysis['confidence'] > 80 else "Moderate",
@@ -366,7 +436,7 @@ class EnhancedTradingAlgorithm:
             }
             
         except Exception as e:
-            logger.error(f"Enhanced algorithm error for {symbol}: {e}")
+            logger.error(f"💥 Enhanced algorithm with auto-order error for {symbol}: {e}")
             return {
                 "signal": "HOLD",
                 "symbol": symbol,
@@ -376,12 +446,17 @@ class EnhancedTradingAlgorithm:
                 "timeframe": "15min",
                 "timestamp": datetime.utcnow().isoformat(),
                 "reason": f"Algorithm error: {e}",
-                "orders": []
+                "orders_placed": False,
+                "order_response": {"error": str(e)}
             }
 
 # Global instance
 _algo_instance = EnhancedTradingAlgorithm()
 
-def enhanced_trading_algorithm(symbol: str) -> Dict:
-    """Main function for external use"""
+async def enhanced_trading_algorithm_with_auto_order(symbol: str, user_data: dict) -> Dict:
+    """Main function for external use with auto order placement"""
+    return await _algo_instance.enhanced_trading_algorithm_with_auto_order(symbol, user_data)
+
+def enhanced_trading_analysis_only(symbol: str) -> Dict:
+    """Analysis only without order placement"""
     return _algo_instance.enhanced_trading_algorithm(symbol)
