@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from typing import Dict, List
-import asyncio
+from datetime import datetime, timedelta
+from bson import ObjectId
 
 from services.trading_scheduler import trading_scheduler
 from services.automated_trading import automated_trading
@@ -69,7 +70,7 @@ async def get_trading_signals(
     
     for signal in signals:
         signal["_id"] = str(signal["_id"])
-        if 'strategy_id' in signal:
+        if 'strategy_id' in signal and signal['strategy_id']:
             signal["strategy_id"] = str(signal["strategy_id"])
     
     return {"signals": signals}
@@ -86,7 +87,8 @@ async def get_trading_orders(
     
     for order in orders:
         order["_id"] = str(order["_id"])
-        order["signal_id"] = str(order["signal_id"])
+        if 'signal_id' in order and order['signal_id']:
+            order["signal_id"] = str(order["signal_id"])
     
     return {"orders": orders}
 
@@ -141,3 +143,147 @@ async def get_watchlist(current_user: UserInDB = Depends(get_current_user)):
     """Get user's watchlist"""
     watchlist = await watchlist_collection.find_one({"user_id": str(current_user.id)})
     return {"watchlist": watchlist.get('symbols', []) if watchlist else []}
+
+@router.post("/create-default-strategies")
+async def create_default_strategies(current_user: UserInDB = Depends(get_current_user)):
+    """Create default trading strategies for user"""
+    user_id = str(current_user.id)
+    
+    default_strategies = [
+        {
+            "user_id": user_id,
+            "name": "Mean Reversion Strategy",
+            "type": "mean_reversion",
+            "description": "Buy oversold, sell overbought stocks",
+            "quantity": 1,
+            "is_active": True,
+            "confidence_threshold": 0.7,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        },
+        {
+            "user_id": user_id,
+            "name": "Momentum Strategy", 
+            "type": "momentum",
+            "description": "Follow the trend - buy uptrend, sell downtrend",
+            "quantity": 1,
+            "is_active": True,
+            "confidence_threshold": 0.6,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        },
+        {
+            "user_id": user_id,
+            "name": "Breakout Strategy",
+            "type": "breakout",
+            "description": "Buy breakouts above resistance, sell breakdowns below support",
+            "quantity": 1, 
+            "is_active": True,
+            "confidence_threshold": 0.8,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        }
+    ]
+    
+    # Insert strategies
+    results = []
+    for strategy in default_strategies:
+        result = await strategies_collection.insert_one(strategy)
+        strategy["_id"] = str(result.inserted_id)
+        results.append(strategy)
+    
+    return {
+        "success": True,
+        "message": f"Created {len(results)} default strategies",
+        "strategies": results
+    }
+
+@router.get("/strategies")
+async def get_user_strategies(current_user: UserInDB = Depends(get_current_user)):
+    """Get user's trading strategies"""
+    strategies = await strategies_collection.find({
+        "user_id": str(current_user.id)
+    }).sort("created_at", -1).to_list(length=10)
+    
+    for strategy in strategies:
+        strategy["_id"] = str(strategy["_id"])
+    
+    return {
+        "success": True,
+        "strategies": strategies,
+        "count": len(strategies)
+    }
+
+@router.post("/force-test")
+async def force_test_trading(current_user: UserInDB = Depends(get_current_user)):
+    """Force generate test signals and orders"""
+    user_id = str(current_user.id)
+    
+    try:
+        # Create test strategy if none exists
+        strategies = await strategies_collection.find({
+            "user_id": user_id,
+            "is_active": True
+        }).to_list(length=1)
+        
+        if not strategies:
+            await create_default_strategies(current_user)
+        
+        # Run trading cycle
+        await automated_trading.initialize_trading(user_id)
+        await automated_trading.run_trading_cycle(user_id)
+        
+        return {
+            "success": True,
+            "message": "Force test completed",
+            "user_id": user_id
+        }
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@router.get("/debug/live-activity")
+async def debug_live_activity(current_user: UserInDB = Depends(get_current_user)):
+    """Get real-time trading activity - WORKING VERSION"""
+    try:
+        user_id = str(current_user.id)
+        
+        print(f"🔍 Checking live activity for user: {user_id}")
+        
+        # Recent signals (last 1 hour)
+        recent_signals = await trading_signals_collection.find({
+            "user_id": user_id,
+            "timestamp": {"$gte": datetime.now() - timedelta(hours=1)}
+        }).sort("timestamp", -1).to_list(length=20)
+        
+        # Recent orders (last 1 hour)
+        recent_orders = await trading_orders_collection.find({
+            "user_id": user_id,
+            "placed_at": {"$gte": datetime.now() - timedelta(hours=1)}
+        }).sort("placed_at", -1).to_list(length=20)
+        
+        print(f"📊 Found {len(recent_signals)} signals and {len(recent_orders)} orders")
+        
+        # Format response
+        for signal in recent_signals:
+            signal["_id"] = str(signal["_id"])
+            if 'strategy_id' in signal and signal['strategy_id']:
+                signal["strategy_id"] = str(signal["strategy_id"])
+        
+        for order in recent_orders:
+            order["_id"] = str(order["_id"])
+            if 'signal_id' in order and order['signal_id']:
+                order["signal_id"] = str(order["signal_id"])
+        
+        return {
+            "success": True,
+            "signals_last_hour": len(recent_signals),
+            "orders_last_hour": len(recent_orders),
+            "recent_signals": recent_signals,
+            "recent_orders": recent_orders,
+            "checked_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Live activity error: {str(e)}")
+        return {"success": False, "error": str(e)}

@@ -69,15 +69,21 @@ async def callback(request: Request, current_user: UserInDB = Depends(get_curren
 @router.post("/order/place")
 async def place_order(
     order_data: Dict[str, Any],
+    user_id: str = None,  # Accept user_id directly
     current_user: UserInDB = Depends(get_current_user)
 ):
     """
-    Place an order through Upstox (SIMPLIFIED - no token refresh)
+    Place an order through Upstox - FIXED VERSION
     """
     try:
+        # Use provided user_id or fallback to current_user
+        target_user_id = user_id or str(current_user.id)
+        
+        print(f"🎯 Placing order for user: {target_user_id}")
+        
         # Get user's Upstox connection
         broker_connection = await brokers_collection.find_one({
-            "user_id": str(current_user.id),
+            "user_id": target_user_id,
             "broker_name": "upstox",
             "status": "active"
         })
@@ -113,7 +119,7 @@ async def place_order(
             'Authorization': f'Bearer {access_token}'
         }
         
-        print(f"📤 Placing order...")
+        print(f"📤 Placing order for {order_data.get('instrument_token', 'unknown')}...")
         
         # Make API call to Upstox
         response = requests.post(
@@ -134,19 +140,90 @@ async def place_order(
         else:
             error_detail = f"Upstox API error: {response.status_code} - {response.text}"
             print(f"❌ Order placement failed: {error_detail}")
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=error_detail
-            )
+            return {
+                "success": False,
+                "message": "Order placement failed",
+                "error": error_detail
+            }
             
-    except HTTPException:
-        raise
     except Exception as e:
         print(f"❌ Order placement error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to place order: {str(e)}"
+        return {
+            "success": False,
+            "message": "Order placement failed",
+            "error": str(e)
+        }
+    
+@router.post("/order/place-automated")
+async def place_order_automated(
+    order_data: Dict[str, Any],
+    user_id: str  # Required for automated trading
+):
+    """
+    Place order for automated trading - simplified version
+    """
+    try:
+        print(f"🤖 AUTOMATED ORDER for user: {user_id}")
+        
+        # Get user's Upstox connection
+        broker_connection = await brokers_collection.find_one({
+            "user_id": user_id,
+            "broker_name": "upstox",
+            "status": "active"
+        })
+        
+        if not broker_connection:
+            return {
+                "success": False,
+                "message": "Upstox connection not found",
+                "error": "No active Upstox connection"
+            }
+        
+        # Decrypt the access token
+        encrypted_token = broker_connection.get('access_token')
+        access_token = decrypt_data(encrypted_token)
+        
+        print(f"🔐 Using token: {access_token[:20]}...")
+        
+        # Prepare headers
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {access_token}'
+        }
+        
+        # Make API call to Upstox
+        response = requests.post(
+            'https://api.upstox.com/v2/order/place',
+            headers=headers,
+            json=order_data,
+            timeout=30
         )
+        
+        if response.status_code == 200:
+            order_response = response.json()
+            print(f"✅ Automated order successful!")
+            return {
+                "success": True,
+                "message": "Order placed successfully",
+                "data": order_response
+            }
+        else:
+            error_detail = f"Upstox API error: {response.status_code} - {response.text}"
+            print(f"❌ Automated order failed: {error_detail}")
+            return {
+                "success": False,
+                "message": "Order placement failed",
+                "error": error_detail
+            }
+            
+    except Exception as e:
+        print(f"❌ Automated order error: {str(e)}")
+        return {
+            "success": False,
+            "message": "Order placement failed",
+            "error": str(e)
+        }
 @router.get("/debug/connections")
 async def debug_connections(current_user: UserInDB = Depends(get_current_user)):
     """Debug all connections for current user"""
@@ -207,8 +284,8 @@ async def debug_token_raw(current_user: UserInDB = Depends(get_current_user)):
         "has_refresh_token": bool(broker_connection.get('refresh_token')),
         "refresh_token_preview": broker_connection.get('refresh_token', '')[:20] + "..." if broker_connection.get('refresh_token') else None,
         "token_expiry": broker_connection.get('token_expiry'),
-        "current_time": datetime.datetime.now(),
-        "is_expired": broker_connection.get('token_expiry') and broker_connection.get('token_expiry') < datetime.datetime.now(),
+        "current_time": datetime.now(),
+        "is_expired": broker_connection.get('token_expiry') and broker_connection.get('token_expiry') < datetime.now(),
         "broker_user_id": broker_connection.get('broker_user_id'),
         "user_name": broker_connection.get('user_name')
     }
@@ -246,7 +323,7 @@ async def debug_decrypted_token(current_user: UserInDB = Depends(get_current_use
         'token_analysis': token_analysis,
         'has_refresh_token': bool(token_data.get('refresh_token')),
         'token_expiry': token_data.get('token_expiry'),
-        'is_expired': token_data.get('token_expiry') and token_data.get('token_expiry') < datetime.datetime.now()
+        'is_expired': token_data.get('token_expiry') and token_data.get('token_expiry') < datetime.now()
     }
 # Add this to your api/upstox.py (TEMPORARY - for testing)
 
@@ -332,37 +409,51 @@ async def force_reconnect(current_user: UserInDB = Depends(get_current_user)):
         "auth_url": auth_url,
         "deleted_connections": result.deleted_count
     }
+from datetime import datetime, timedelta
+from bson import ObjectId
+
 @router.get("/debug/live-activity")
-async def get_live_activity(current_user: UserInDB = Depends(get_current_user)):
-    """Get real-time trading activity"""
-    user_id = str(current_user.id)
-    
-    # Recent signals (last 1 hour)
-    recent_signals = await trading_signals_collection.find({
-        "user_id": user_id,
-        "timestamp": {"$gte": datetime.now() - timedelta(hours=1)}
-    }).sort("timestamp", -1).to_list(length=20)
-    
-    # Recent orders (last 1 hour) 
-    recent_orders = await trading_orders_collection.find({
-        "user_id": user_id,
-        "placed_at": {"$gte": datetime.now() - timedelta(hours=1)}
-    }).sort("placed_at", -1).to_list(length=20)
-    
-    # Format response
-    for signal in recent_signals:
-        signal["_id"] = str(signal["_id"])
-        if 'strategy_id' in signal:
-            signal["strategy_id"] = str(signal["strategy_id"])
-    
-    for order in recent_orders:
-        order["_id"] = str(order["_id"])
-        order["signal_id"] = str(order["signal_id"])
-    
-    return {
-        "signals_last_hour": len(recent_signals),
-        "orders_last_hour": len(recent_orders),
-        "recent_signals": recent_signals,
-        "recent_orders": recent_orders,
-        "checked_at": datetime.now()
-    }
+async def debug_live_activity(current_user: UserInDB = Depends(get_current_user)):
+    """Get real-time trading activity - WORKING VERSION"""
+    try:
+        user_id = str(current_user.id)
+        
+        print(f"🔍 Checking live activity for user: {user_id}")
+        
+        # Recent signals (last 1 hour)
+        recent_signals = await trading_signals_collection.find({
+            "user_id": user_id,
+            "timestamp": {"$gte": datetime.now() - timedelta(hours=1)}
+        }).sort("timestamp", -1).to_list(length=20)
+        
+        # Recent orders (last 1 hour)
+        recent_orders = await trading_orders_collection.find({
+            "user_id": user_id,
+            "placed_at": {"$gte": datetime.now() - timedelta(hours=1)}
+        }).sort("placed_at", -1).to_list(length=20)
+        
+        print(f"📊 Found {len(recent_signals)} signals and {len(recent_orders)} orders")
+        
+        # Format response
+        for signal in recent_signals:
+            signal["_id"] = str(signal["_id"])
+            if 'strategy_id' in signal and signal['strategy_id']:
+                signal["strategy_id"] = str(signal["strategy_id"])
+        
+        for order in recent_orders:
+            order["_id"] = str(order["_id"])
+            if 'signal_id' in order and order['signal_id']:
+                order["signal_id"] = str(order["signal_id"])
+        
+        return {
+            "success": True,
+            "signals_last_hour": len(recent_signals),
+            "orders_last_hour": len(recent_orders),
+            "recent_signals": recent_signals,
+            "recent_orders": recent_orders,
+            "checked_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Live activity error: {str(e)}")
+        return {"success": False, "error": str(e)}
