@@ -1,4 +1,4 @@
-# api/upstox.py - UPDATED
+import datetime
 from datetime import datetime, timedelta  # Add this import at the top
 from typing import Any, Dict, List
 from bson import ObjectId
@@ -11,7 +11,10 @@ from app.schemas.user import UserInDB
 from app.services.user import get_current_user
 from schemas.upstox import DebugConfig, ConnectionStatus, MultiOrderRequest, MultiOrderResponse, UpstoxMultiOrder
 from services.upstox import upstox_service
-
+from fastapi import APIRouter, Depends, HTTPException, Header
+from app.schemas.user import UserInDB
+from database.collections import brokers_collection
+from app.services.user import get_current_user
 router = APIRouter(prefix="/api/upstox", tags=["Upstox"])
 
 @router.get("/login")
@@ -457,3 +460,434 @@ async def debug_live_activity(current_user: UserInDB = Depends(get_current_user)
     except Exception as e:
         print(f"❌ Live activity error: {str(e)}")
         return {"success": False, "error": str(e)}
+    
+@router.get("/order/history")
+async def get_order_history(
+    order_id: str = None,
+    days_back: int = 7,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """
+    Get order history from Upstox
+    - Get specific order by order_id
+    - Or get recent orders from last N days
+    """
+    try:
+        print(f"📋 Fetching order history for user: {current_user.id}")
+        
+        # Get user's Upstox connection
+        broker_connection = await brokers_collection.find_one({
+            "user_id": str(current_user.id),
+            "broker_name": "upstox",
+            "status": "active"
+        })
+        
+        if not broker_connection:
+            raise HTTPException(
+                status_code=400,
+                detail="Upstox connection not found. Please connect your Upstox account first."
+            )
+        
+        # Decrypt the access token
+        encrypted_token = broker_connection.get('access_token')
+        access_token = decrypt_data(encrypted_token)
+        
+        print(f"🔐 Using token: {access_token[:20]}...")
+        
+        # Prepare headers
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {access_token}'
+        }
+        
+        if order_id:
+            # Get specific order by ID
+            print(f"🔍 Fetching specific order: {order_id}")
+            response = requests.get(
+                f'https://api.upstox.com/v2/order/history?order_id={order_id}',
+                headers=headers,
+                timeout=30
+            )
+        else:
+            # Get recent orders (last N days)
+            print(f"📅 Fetching orders from last {days_back} days")
+            from_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+            response = requests.get(
+                f'https://api.upstox.com/v2/order/retrieve-all?from_date={from_date}',
+                headers=headers,
+                timeout=30
+            )
+        
+        if response.status_code == 200:
+            order_data = response.json()
+            print(f"✅ Order history fetched successfully!")
+            
+            # Store orders in database for future reference
+            await store_orders_in_db(order_data, str(current_user.id))
+            
+            return {
+                "success": True,
+                "message": "Order history fetched successfully",
+                "data": order_data
+            }
+        else:
+            error_detail = f"Upstox API error: {response.status_code} - {response.text}"
+            print(f"❌ Order history fetch failed: {error_detail}")
+            return {
+                "success": False,
+                "message": "Failed to fetch order history",
+                "error": error_detail
+            }
+            
+    except Exception as e:
+        print(f"❌ Order history error: {str(e)}")
+        return {
+            "success": False,
+            "message": "Failed to fetch order history",
+            "error": str(e)
+        }
+
+@router.get("/order/details/{order_id}")
+async def get_order_details(
+    order_id: str,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """
+    Get detailed information about a specific order
+    """
+    try:
+        print(f"🔍 Fetching details for order: {order_id}")
+        
+        # Get user's Upstox connection
+        broker_connection = await brokers_collection.find_one({
+            "user_id": str(current_user.id),
+            "broker_name": "upstox",
+            "status": "active"
+        })
+        
+        if not broker_connection:
+            raise HTTPException(
+                status_code=400,
+                detail="Upstox connection not found"
+            )
+        
+        # Decrypt the access token
+        encrypted_token = broker_connection.get('access_token')
+        access_token = decrypt_data(encrypted_token)
+        
+        # Prepare headers
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {access_token}'
+        }
+        
+        # Make API call to Upstox
+        response = requests.get(
+            f'https://api.upstox.com/v2/order/history?order_id={order_id}',
+            headers=headers,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            order_details = response.json()
+            print(f"✅ Order details fetched successfully for order: {order_id}")
+            
+            return {
+                "success": True,
+                "message": "Order details fetched successfully",
+                "data": order_details
+            }
+        else:
+            error_detail = f"Upstox API error: {response.status_code} - {response.text}"
+            print(f"❌ Order details fetch failed: {error_detail}")
+            return {
+                "success": False,
+                "message": "Failed to fetch order details",
+                "error": error_detail
+            }
+            
+    except Exception as e:
+        print(f"❌ Order details error: {str(e)}")
+        return {
+            "success": False,
+            "message": "Failed to fetch order details",
+            "error": str(e)
+        }
+
+@router.get("/orders/recent")
+async def get_recent_orders(
+    page: int = 1,
+    limit: int = 20,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """
+    Get recent orders from database (cached)
+    """
+    try:
+        skip = (page - 1) * limit
+        
+        # Get orders from database
+        orders = await trading_orders_collection.find({
+            "user_id": str(current_user.id)
+        }).sort("placed_at", -1).skip(skip).limit(limit).to_list(length=limit)
+        
+        # Convert ObjectId to string
+        for order in orders:
+            order["_id"] = str(order["_id"])
+            if 'signal_id' in order and order['signal_id']:
+                order["signal_id"] = str(order["signal_id"])
+        
+        return {
+            "success": True,
+            "page": page,
+            "limit": limit,
+            "total_orders": len(orders),
+            "data": orders
+        }
+        
+    except Exception as e:
+        print(f"❌ Recent orders error: {str(e)}")
+        return {
+            "success": False,
+            "message": "Failed to fetch recent orders",
+            "error": str(e)
+        }
+
+async def store_orders_in_db(order_data: Dict[str, Any], user_id: str):
+    """
+    Store orders in database for caching and analytics
+    """
+    try:
+        if not order_data or 'data' not in order_data:
+            return
+        
+        orders = order_data['data']
+        if not isinstance(orders, list):
+            orders = [orders]
+        
+        stored_count = 0
+        for order in orders:
+            if not isinstance(order, dict):
+                continue
+                
+            # Check if order already exists
+            existing_order = await trading_orders_collection.find_one({
+                "user_id": user_id,
+                "order_id": order.get('order_id')
+            })
+            
+            if not existing_order:
+                # Prepare order document
+                order_doc = {
+                    "user_id": user_id,
+                    "order_id": order.get('order_id'),
+                    "broker": "upstox",
+                    "instrument_token": order.get('instrument_token'),
+                    "tradingsymbol": order.get('tradingsymbol'),
+                    "transaction_type": order.get('transaction_type'),
+                    "order_type": order.get('order_type'),
+                    "quantity": order.get('quantity'),
+                    "price": order.get('price'),
+                    "trigger_price": order.get('trigger_price'),
+                    "status": order.get('status'),
+                    "status_message": order.get('status_message'),
+                    "exchange": order.get('exchange'),
+                    "product": order.get('product'),
+                    "validity": order.get('validity'),
+                    "placed_at": datetime.fromisoformat(order.get('order_timestamp').replace('Z', '+00:00')) if order.get('order_timestamp') else datetime.now(),
+                    "created_at": datetime.now()
+                }
+                
+                # Insert into database
+                await trading_orders_collection.insert_one(order_doc)
+                stored_count += 1
+        
+        print(f"💾 Stored {stored_count} new orders in database")
+        
+    except Exception as e:
+        print(f"❌ Error storing orders in DB: {str(e)}")
+@router.get("/portfolio/holdings")
+async def get_long_term_holdings(current_user: UserInDB = Depends(get_current_user)):
+    """
+    Get long-term holdings from Upstox portfolio
+    """
+    try:
+        print(f"📈 Fetching long-term holdings for user: {current_user.id}")
+        
+        # Get user's Upstox connection
+        broker_connection = await brokers_collection.find_one({
+            "user_id": str(current_user.id),
+            "broker_name": "upstox",
+            "status": "active"
+        })
+        
+        if not broker_connection:
+            raise HTTPException(
+                status_code=400,
+                detail="Upstox connection not found. Please connect your Upstox account first."
+            )
+        
+        # Decrypt the access token
+        encrypted_token = broker_connection.get('access_token')
+        access_token = decrypt_data(encrypted_token)
+        
+        print(f"🔐 Using token: {access_token[:20]}...")
+        
+        # Prepare headers
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {access_token}'
+        }
+        
+        # Make API call to Upstox
+        response = requests.get(
+            'https://api.upstox.com/v2/portfolio/long-term-holdings',
+            headers=headers,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            holdings_data = response.json()
+            print(f"✅ Holdings fetched successfully! Found {len(holdings_data.get('data', []))} holdings")
+            
+            return {
+                "success": True,
+                "message": "Long-term holdings fetched successfully",
+                "data": holdings_data
+            }
+        else:
+            error_detail = f"Upstox API error: {response.status_code} - {response.text}"
+            print(f"❌ Holdings fetch failed: {error_detail}")
+            return {
+                "success": False,
+                "message": "Failed to fetch holdings",
+                "error": error_detail
+            }
+            
+    except Exception as e:
+        print(f"❌ Holdings error: {str(e)}")
+        return {
+            "success": False,
+            "message": "Failed to fetch holdings",
+            "error": str(e)
+        }
+"""Response Format:
+The API will return the same response structure as the Upstox API, including:
+
+List of holdings with details like:
+
+tradingsymbol
+
+quantity
+
+average_price
+
+last_price
+
+pnl
+
+And other holding details
+"""
+@router.get("/profit-loss")
+async def get_profit_loss(
+    from_date: str,
+    to_date: str,
+    segment: str = "EQ",
+    financial_year: str = "2324",
+    page_number: int = 1,
+    page_size: int = 10,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """
+    Get profit-loss data from Upstox
+    """
+    try:
+        print(f"💰 Fetching P&L data for user: {current_user.id}")
+        
+        # Get user's Upstox connection
+        broker_connection = await brokers_collection.find_one({
+            "user_id": str(current_user.id),
+            "broker_name": "upstox",
+            "status": "active"
+        })
+        
+        if not broker_connection:
+            raise HTTPException(
+                status_code=400,
+                detail="Upstox connection not found. Please connect your Upstox account first."
+            )
+        
+        # Decrypt the access token
+        encrypted_token = broker_connection.get('access_token')
+        access_token = decrypt_data(encrypted_token)
+        
+        print(f"🔐 Using token: {access_token[:20]}...")
+        
+        # Prepare headers
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {access_token}'
+        }
+        
+        # Build query parameters
+        params = {
+            'from_date': from_date,
+            'to_date': to_date,
+            'segment': segment,
+            'financial_year': financial_year,
+            'page_number': page_number,
+            'page_size': page_size
+        }
+        
+        print(f"📅 Fetching P&L from {from_date} to {to_date}, segment: {segment}")
+        
+        # Make API call to Upstox
+        response = requests.get(
+            'https://api.upstox.com/v2/trade/profit-loss/data',
+            headers=headers,
+            params=params,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            pnl_data = response.json()
+            print(f"✅ P&L data fetched successfully!")
+            
+            return {
+                "success": True,
+                "message": "Profit-loss data fetched successfully",
+                "data": pnl_data
+            }
+        else:
+            error_detail = f"Upstox API error: {response.status_code} - {response.text}"
+            print(f"❌ P&L data fetch failed: {error_detail}")
+            return {
+                "success": False,
+                "message": "Failed to fetch profit-loss data",
+                "error": error_detail
+            }
+            
+    except Exception as e:
+        print(f"❌ P&L data error: {str(e)}")
+        return {
+            "success": False,
+            "message": "Failed to fetch profit-loss data",
+            "error": str(e)
+        }
+"""Parameters:
+from_date (required): Start date in DD-MM-YYYY format
+
+to_date (required): End date in DD-MM-YYYY format
+
+segment (optional): Segment type (EQ, FNO, etc.) - defaults to "EQ"
+
+financial_year (optional): Financial year in YYXX format - defaults to "2324"
+
+page_number (optional): Page number for pagination - defaults to 1
+
+page_size (optional): Number of records per page - defaults to 10
+"""

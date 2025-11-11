@@ -25,11 +25,18 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/user", tags=["users"])
-
+ 
 # ========== AUTHENTICATION ENDPOINTS ==========
 
 @router.post("/signup")
 async def signup(user: User):
+    """
+    Register a new user account
+    - Validates email and username uniqueness
+    - Hashes password securely
+    - Creates user record with default role
+    - Returns user ID and confirmation
+    """
     try:
         logger.info(f"Signup attempt - Email: {user.email}, Username: {user.username}")
         
@@ -90,6 +97,14 @@ async def signup(user: User):
 
 @router.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    """
+    Authenticate user and generate access/refresh tokens
+    - Accepts username or email for login
+    - Verifies password against stored hash
+    - Generates JWT access token and refresh token
+    - Updates last login timestamp
+    - Returns user info with tokens
+    """
     try:
         user = await users_collection.find_one({
             "$or": [
@@ -149,7 +164,12 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 @router.get("/profile")
 async def get_user_profile(current_user: UserInDB = Depends(require_user)):
-    """Get current user profile"""
+    """
+    Retrieve current authenticated user's profile information
+    - Returns complete user profile data
+    - Requires valid authentication token
+    - Includes personal info, brokers, and watchlist
+    """
     try:
         return {
             "id": current_user.id,
@@ -175,7 +195,13 @@ async def update_user_profile(
     update_data: UserUpdate,
     current_user: UserInDB = Depends(require_user)
 ):
-    """Update user profile"""
+    """
+    Update current user's profile information
+    - Allows partial updates of user data
+    - Validates update fields
+    - Updates timestamp automatically
+    - Returns success confirmation
+    """
     try:
         update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
         if not update_dict:
@@ -212,7 +238,12 @@ async def update_user_profile(
 
 @router.get("/admin/users")
 async def admin_get_all_users(current_user: UserInDB = Depends(require_admin)):
-    """Get all users (Admin only)"""
+    """
+    Retrieve all users in the system (Admin only)
+    - Returns complete list of all registered users
+    - Includes user details and metadata
+    - Restricted to admin role access
+    """
     try:
         users = await get_all_users(current_user)
         return [
@@ -240,7 +271,12 @@ async def admin_get_users_by_role(
     role: str,
     current_user: UserInDB = Depends(require_admin)
 ):
-    """Get users by specific role (Admin only)"""
+    """
+    Filter and retrieve users by specific role (Admin only)
+    - Returns users filtered by role type
+    - Useful for role-based user management
+    - Restricted to admin role access
+    """
     try:
         users = await get_users_by_role(role, current_user)
         return [
@@ -270,7 +306,12 @@ async def admin_update_user_role(
     role_update: dict,
     current_user: UserInDB = Depends(require_admin)
 ):
-    """Update user role (Admin only)"""
+    """
+    Modify user role permissions (Admin only)
+    - Updates user's role in the system
+    - Enables role-based access control management
+    - Restricted to admin role access
+    """
     try:
         return await update_user_role(email, role_update.get("role"), current_user)
     except HTTPException:
@@ -284,7 +325,12 @@ async def admin_update_user_role(
 
 @router.get("/admin/stats")
 async def admin_get_stats(current_user: UserInDB = Depends(require_admin)):
-    """Get user statistics (Admin only)"""
+    """
+    Retrieve system user statistics (Admin only)
+    - Returns analytics and metrics about users
+    - Useful for admin dashboard reporting
+    - Restricted to admin role access
+    """
     try:
         return await get_user_stats(current_user)
     except Exception as e:
@@ -296,7 +342,12 @@ async def admin_get_stats(current_user: UserInDB = Depends(require_admin)):
 
 @router.get("/admin/dashboard")
 async def admin_dashboard(current_user: UserInDB = Depends(require_admin)):
-    """Admin dashboard (Admin only)"""
+    """
+    Admin dashboard overview (Admin only)
+    - Returns admin-specific features and welcome message
+    - Provides overview of admin capabilities
+    - Restricted to admin role access
+    """
     return {
         "message": "Welcome to Admin Dashboard",
         "user": {
@@ -315,7 +366,12 @@ async def admin_dashboard(current_user: UserInDB = Depends(require_admin)):
 
 @router.get("/agency/users")
 async def agency_get_users(current_user: UserInDB = Depends(require_agency)):
-    """Get users for agency (Agency can see regular users)"""
+    """
+    Retrieve users visible to agency role (Agency only)
+    - Returns regular users and other agencies
+    - Limited visibility compared to admin
+    - Restricted to agency role access
+    """
     try:
         # Agencies can see regular users and their own agency users
         users = await users_collection.find({
@@ -346,7 +402,12 @@ async def agency_get_users(current_user: UserInDB = Depends(require_agency)):
 
 @router.get("/agency/dashboard")
 async def agency_dashboard(current_user: UserInDB = Depends(require_agency)):
-    """Agency dashboard (Agency only)"""
+    """
+    Agency dashboard overview (Agency only)
+    - Returns agency-specific features and welcome message
+    - Provides overview of agency capabilities
+    - Restricted to agency role access
+    """
     return {
         "message": "Welcome to Agency Dashboard",
         "user": {
@@ -365,7 +426,13 @@ async def agency_dashboard(current_user: UserInDB = Depends(require_agency)):
 
 @router.post("/refresh")
 async def refresh_token(request: Request):
-    """Refresh access token"""
+    """
+    Generate new access token using refresh token
+    - Validates existing refresh token
+    - Issues new access and refresh tokens
+    - Updates refresh token in database
+    - Maintains continuous authentication
+    """
     try:
         data = await request.json()
         refresh_token = data.get("refresh_token")
@@ -405,7 +472,13 @@ async def logout(
     request: Request,
     current_user: UserInDB = Depends(require_user)
 ):
-    """Logout user"""
+    """
+    Invalidate user session and tokens
+    - Removes refresh token from database
+    - Effectively logs user out of system
+    - Requires valid authentication to logout
+    - Returns logout confirmation
+    """
     try:
         data = await request.json()
         refresh_token = data.get("refresh_token")
